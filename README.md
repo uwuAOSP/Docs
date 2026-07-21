@@ -75,3 +75,7 @@ Suitable for apps that need to continuously perform background tasks.
 ### Default
 
 Default mode removes the app’s uwuBackGroundManager policy and restores Android’s native process management.
+
+### Thanks
+
+Many thanks to the Cirno project for inspiring this feature: https://github.com/Freezer-Team/Cirno.git
