@@ -74,4 +74,6 @@ Full 模式不需要专用内核hook
 
 默认模式会移除该应用的 uwuBackGroundManager 策略，恢复 Android 原生进程管理。
 
+### 感谢
+
 非常感谢Cirno项目给本功能的启发：https://github.com/Freezer-Team/Cirno.git
