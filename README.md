@@ -1,6 +1,6 @@
-# Uni 构建系统
+# uni 构建系统
 
-Uni 是 uwuAOSP 的本机构建调度器。它仍使用 Soong、Kati 和 Ninja 生成并执行 Android 构建规则，但会保存构建图状态、拆分完整构建的关键阶段，并根据实时资源为高内存任务分配独立并发池。
+uni 是 uwuAOSP 的本机构建调度器。它仍使用 Soong、Kati 和 Ninja 生成并执行 Android 构建规则，但会保存构建图状态、拆分完整构建的关键阶段，并根据实时资源为高内存任务分配独立并发池。
 
 ```sh
 source build/envsetup.sh
@@ -30,7 +30,7 @@ uni -j18 SystemUI Settings Launcher3QuickStep
 
 ## 资源计算
 
-没有显式覆盖时，Uni 读取 `MemAvailable`，预留 3 GiB 系统空间后估算资源池：
+没有显式覆盖时，uni 读取 `MemAvailable`，预留 3 GiB 系统空间后估算资源池：
 
 | 任务 | 估算内存 |
 | --- | ---: |
@@ -56,7 +56,7 @@ Android.bp 分析单独设置 Go 堆上限。它会为 Soong 的非 Go 堆内存
 | `--assume-existing` | 接受 Ninja 日志缺失但磁盘存在的输出，同时启用 `--trust-output` |
 | `--force-reuse` | 跳过源码新鲜度检查，强制复用保存的图 |
 
-它们不会让真实依赖变化消失。源码、产品、分支或构建规则已变化时，应使用普通增量构建让 Uni 更新图。
+它们不会让真实依赖变化消失。源码、产品、分支或构建规则已变化时，应使用普通增量构建让 uni 更新图。
 
 ## 常用命令
 
@@ -86,13 +86,13 @@ uni --no-debug -j18 SystemUI
 | 原生 Make | 5:19:04 |
 | Uni | 3:25:43 |
 
-Uni 在该次对比中节省 **1:53:21**，总用时减少 **35.5%**。按完成速度计算约为 Make 的 **1.55 倍**，等效吞吐提高约 **55.1%**。
+uni 在该次对比中节省 **1:53:21**，总用时减少 **35.5%**。按完成速度计算约为 Make 的 **1.55 倍**，等效吞吐提高约 **55.1%**。
 
 测试主机为 Intel Core Ultra 5 125H，14 核 18 线程，约 32 GiB 内存、50 GiB swap 和 NVMe SSD。两组时间由用户在同一主机上的完整 clean build 记录提供，不是跨设备通用结论。源码与 manifest 版本、温度、后台负载、存储缓存、ccache、swap 和目标产品都会造成误差。
 
 ## 输出与排查
 
-构建结束时，Uni 只输出一份结果摘要，包括阶段数、最低可用内存、swap-out、包或输出目录和总时长。默认日志位于 `OUT_DIR`：
+构建结束时，uni 只输出一份结果摘要，包括阶段数、最低可用内存、swap-out、包或输出目录和总时长。默认日志位于 `OUT_DIR`：
 
 ```text
 uwuCli-output_<timestamp>.log
