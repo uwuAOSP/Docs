@@ -24,7 +24,7 @@ Soong-only 不能简单地理解为“删除所有 Make”。Make 仍负责产�
 | [构建流程](build-flow.md) | `PRODUCT_SOONG_ONLY`、配置导出和 Soong 构建图 |
 | [镜像生成](image-generation.md) | fsgen、boot/DTBO/vbmeta/super 镜像和输出位置 |
 | [构建验证](validation.md) | 验证命令、产物检查和增量构建检查 |
-| [uwu_kernel 构建系统](uwu_kernel/README.md) | `uwu_kernel` 的页面索引和职责边界 |
+| [uwu_kernel 构建系统](uwu_kernel/) | `uwu_kernel` 的页面索引和职责边界 |
 
 ## 基本概念
 
