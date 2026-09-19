@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="480" viewBox="0 0 900 480" role="img" aria-labelledby="title desc">
+  <title id="title">uwuAOSP clean build time comparison</title>
+  <desc id="desc">Make completed in 5 hours 19 minutes 4 seconds. Uni completed in 3 hours 25 minutes 43 seconds.</desc>
+  <rect width="900" height="480" rx="24" fill="#111318"/>
+  <text x="52" y="54" fill="#f0f0f7" font-family="sans-serif" font-size="25" font-weight="700">uwuAOSP clean build time</text>
+  <text x="52" y="82" fill="#aeb4c0" font-family="sans-serif" font-size="14">Lower is better · same host</text>
+
+  <line x1="110" y1="390" x2="850" y2="390" stroke="#555d6b" stroke-width="2"/>
+  <line x1="110" y1="110" x2="110" y2="390" stroke="#555d6b" stroke-width="2"/>
+
+  <g fill="#aeb4c0" font-family="sans-serif" font-size="13" text-anchor="end">
+    <text x="96" y="394">0h</text>
+    <text x="96" y="338">1h</text>
+    <text x="96" y="282">2h</text>
+    <text x="96" y="226">3h</text>
+    <text x="96" y="170">4h</text>
+    <text x="96" y="114">5h</text>
+  </g>
+  <g stroke="#303641" stroke-width="1">
+    <line x1="110" y1="334" x2="850" y2="334"/>
+    <line x1="110" y1="278" x2="850" y2="278"/>
+    <line x1="110" y1="222" x2="850" y2="222"/>
+    <line x1="110" y1="166" x2="850" y2="166"/>
+    <line x1="110" y1="110" x2="850" y2="110"/>
+  </g>
+
+  <polyline points="255,92 705,198" fill="none" stroke="#8ab4f8" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="255" cy="92" r="10" fill="#f28b82" stroke="#111318" stroke-width="4"/>
+  <circle cx="705" cy="198" r="10" fill="#81c995" stroke="#111318" stroke-width="4"/>
+
+  <g font-family="sans-serif" text-anchor="middle">
+    <text x="255" y="425" fill="#f0f0f7" font-size="18" font-weight="700">Make</text>
+    <text x="705" y="425" fill="#f0f0f7" font-size="18" font-weight="700">Uni</text>
+    <text x="255" y="75" fill="#f28b82" font-size="17" font-weight="700">5:19:04</text>
+    <text x="705" y="181" fill="#81c995" font-size="17" font-weight="700">3:25:43</text>
+  </g>
+
+  <rect x="573" y="104" width="250" height="46" rx="12" fill="#1c3527"/>
+  <text x="698" y="133" fill="#81c995" font-family="sans-serif" font-size="17" font-weight="700" text-anchor="middle">35.5% less elapsed time</text>
+</svg>
