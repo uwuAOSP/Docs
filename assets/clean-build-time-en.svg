@@ -1,42 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1000" height="720" viewBox="0 0 1000 720" role="img" aria-labelledby="title desc">
-  <title id="title">Uni 运行时遥测</title>
-  <desc id="desc">一次成功 Uni 构建最终 82 分 37 秒内的 CPU、可用内存、swap-out 与 I/O wait。</desc>
+  <title id="title">Uni runtime telemetry</title>
+  <desc id="desc">CPU, available RAM, swap-out and I/O wait from the final 82 minutes and 37 seconds of a successful Uni build.</desc>
   <rect width="1000" height="720" rx="24" fill="#fbfbfa"/>
   <rect x="1" y="1" width="998" height="718" rx="23" fill="none" stroke="#e2e3e0"/>
   <g font-family="Outfit,Noto Sans CJK SC,PingFang SC,Microsoft YaHei,Yu Gothic,sans-serif">
-    <text x="48" y="58" fill="#1c1c1e" font-size="25" font-weight="700">Uni 运行时遥测</text>
-    <text x="48" y="85" fill="#5d5e63" font-size="14">最终阶段 · 82 分 37 秒 · 构建成功</text>
-
+    <text x="48" y="58" fill="#1c1c1e" font-size="25" font-weight="700">Uni runtime telemetry</text>
+    <text x="48" y="85" fill="#5d5e63" font-size="14">Final phase · 82m 37s · successful build</text>
     <g font-size="13" fill="#303034">
-      <circle cx="54" cy="116" r="5" fill="#2875d9"/><text x="66" y="121">CPU · 平均 96.2%</text>
-      <circle cx="236" cy="116" r="5" fill="#3e9b5f"/><text x="248" y="121">可用内存 · 最低 5.7 GiB</text>
-      <circle cx="516" cy="116" r="5" fill="#7566ce"/><text x="528" y="121">swap-out · 累计 20.1 GiB</text>
+      <circle cx="54" cy="116" r="5" fill="#2875d9"/><text x="66" y="121">CPU · 96.2% avg</text>
+      <circle cx="236" cy="116" r="5" fill="#3e9b5f"/><text x="248" y="121">Available RAM · 5.7 GiB min</text>
+      <circle cx="516" cy="116" r="5" fill="#7566ce"/><text x="528" y="121">Swap-out · 20.1 GiB total</text>
       <circle cx="758" cy="116" r="5" fill="#d97445"/><text x="770" y="121">I/O wait</text>
     </g>
-
     <rect x="36" y="146" width="928" height="250" rx="18" fill="#fff" stroke="#e2e3e0"/>
-    <text x="64" y="182" fill="#1c1c1e" font-size="17" font-weight="700">CPU / 可用内存</text>
-    <g stroke="#d9ddd7" stroke-dasharray="2 7" stroke-linecap="round">
-      <path d="M120 206H900M120 266H900M120 326H900M120 386H900M120 206V386M310 206V386M500 206V386M690 206V386M900 206V386"/>
-    </g>
-    <g fill="#5d5e63" font-size="12">
-      <text x="108" y="211" text-anchor="end">100%</text><text x="108" y="271" text-anchor="end">66%</text><text x="108" y="331" text-anchor="end">33%</text><text x="108" y="391" text-anchor="end">0%</text>
-      <text x="912" y="211">30 GiB</text><text x="912" y="271">20 GiB</text><text x="912" y="331">10 GiB</text><text x="912" y="391">0 GiB</text>
-    </g>
+    <text x="64" y="182" fill="#1c1c1e" font-size="17" font-weight="700">CPU / Available RAM</text>
+    <g stroke="#d9ddd7" stroke-dasharray="2 7" stroke-linecap="round"><path d="M120 206H900M120 266H900M120 326H900M120 386H900M120 206V386M310 206V386M500 206V386M690 206V386M900 206V386"/></g>
+    <g fill="#5d5e63" font-size="12"><text x="108" y="211" text-anchor="end">100%</text><text x="108" y="271" text-anchor="end">66%</text><text x="108" y="331" text-anchor="end">33%</text><text x="108" y="391" text-anchor="end">0%</text><text x="912" y="211">30 GiB</text><text x="912" y="271">20 GiB</text><text x="912" y="331">10 GiB</text><text x="912" y="391">0 GiB</text></g>
     <polyline points="120,386 167,209 215,205 262,205 310,205 358,204 405,204 453,230 500,207 548,207 595,205 643,205 690,205 738,206 785,205 833,205 900,377" fill="none" stroke="#2875d9" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
     <polyline points="120,224 167,303 215,320 262,285 310,303 358,302 405,287 453,291 500,309 548,284 595,338 643,347 690,327 738,276 785,305 833,275 900,221" fill="none" stroke="#3e9b5f" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
     <circle cx="900" cy="377" r="5" fill="#2875d9" stroke="#fff" stroke-width="3"/><circle cx="900" cy="221" r="5" fill="#3e9b5f" stroke="#fff" stroke-width="3"/>
     <g fill="#5d5e63" font-size="12" text-anchor="middle"><text x="120" y="415">0m</text><text x="310" y="415">20m</text><text x="500" y="415">40m</text><text x="690" y="415">60m</text><text x="900" y="415">82m</text></g>
-
     <rect x="36" y="438" width="928" height="250" rx="18" fill="#fff" stroke="#e2e3e0"/>
-    <text x="64" y="474" fill="#1c1c1e" font-size="17" font-weight="700">swap-out / I/O wait</text>
-    <g stroke="#d9ddd7" stroke-dasharray="2 7" stroke-linecap="round">
-      <path d="M120 498H900M120 558H900M120 618H900M120 678H900M120 498V678M310 498V678M500 498V678M690 498V678M900 498V678"/>
-    </g>
-    <g fill="#5d5e63" font-size="12">
-      <text x="108" y="503" text-anchor="end">22 GiB</text><text x="108" y="563" text-anchor="end">15 GiB</text><text x="108" y="623" text-anchor="end">7 GiB</text><text x="108" y="683" text-anchor="end">0 GiB</text>
-      <text x="912" y="503">50%</text><text x="912" y="563">33%</text><text x="912" y="623">16%</text><text x="912" y="683">0%</text>
-    </g>
+    <text x="64" y="474" fill="#1c1c1e" font-size="17" font-weight="700">Swap-out / I/O wait</text>
+    <g stroke="#d9ddd7" stroke-dasharray="2 7" stroke-linecap="round"><path d="M120 498H900M120 558H900M120 618H900M120 678H900M120 498V678M310 498V678M500 498V678M690 498V678M900 498V678"/></g>
+    <g fill="#5d5e63" font-size="12"><text x="108" y="503" text-anchor="end">22 GiB</text><text x="108" y="563" text-anchor="end">15 GiB</text><text x="108" y="623" text-anchor="end">7 GiB</text><text x="108" y="683" text-anchor="end">0 GiB</text><text x="912" y="503">50%</text><text x="912" y="563">33%</text><text x="912" y="623">16%</text><text x="912" y="683">0%</text></g>
     <path d="M120 678L167 590L215 590L262 590L310 590L358 590L405 560L453 551L500 543L548 538L595 534L643 534L690 534L738 534L785 534L833 534L900 512L900 678Z" fill="#7566ce" fill-opacity=".18"/>
     <polyline points="120,678 167,590 215,590 262,590 310,590 358,590 405,560 453,551 500,543 548,538 595,534 643,534 690,534 738,534 785,534 833,534 900,512" fill="none" stroke="#7566ce" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
     <polyline points="120,516 167,674 215,678 262,678 310,677 358,678 405,678 453,657 500,678 548,678 595,678 643,678 690,678 738,678 785,678 833,678 900,556" fill="none" stroke="#d97445" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
