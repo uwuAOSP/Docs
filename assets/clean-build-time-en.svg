@@ -5,7 +5,7 @@
   <rect x="1" y="1" width="998" height="718" rx="23" fill="none" stroke="#e2e3e0"/>
   <g font-family="Outfit,Noto Sans CJK SC,PingFang SC,Microsoft YaHei,Yu Gothic,sans-serif">
     <text x="48" y="58" fill="#1c1c1e" font-size="25" font-weight="700">Uni runtime telemetry</text>
-    <text x="48" y="85" fill="#5d5e63" font-size="14">Final phase · 82m 37s · successful build</text>
+    <text x="48" y="85" fill="#5d5e63" font-size="14">Final phase | 82m 37s</text>
     <g font-size="13" fill="#303034">
       <circle cx="54" cy="116" r="5" fill="#2875d9"/><text x="66" y="121">CPU · 96.2% avg</text>
       <circle cx="236" cy="116" r="5" fill="#3e9b5f"/><text x="248" y="121">Available RAM · 5.7 GiB min</text>
