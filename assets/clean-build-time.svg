@@ -1,6 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1000" height="720" viewBox="0 0 1000 720" role="img" aria-labelledby="title desc">
-  <title id="title">Uni 运行时遥测</title>
-  <desc id="desc">一次成功 Uni 构建最终 82 分 37 秒内的 CPU、可用内存、swap-out 与 I/O wait。</desc>
+  <desc id="desc">成功使用 uni 构建最终 82 分 37 秒内的 CPU、可用内存、swap-out 与 I/O wait。</desc>
   <rect width="1000" height="720" rx="24" fill="#fbfbfa"/>
   <rect x="1" y="1" width="998" height="718" rx="23" fill="none" stroke="#e2e3e0"/>
   <g font-family="Outfit,Noto Sans CJK SC,PingFang SC,Microsoft YaHei,Yu Gothic,sans-serif">
@@ -8,9 +7,9 @@
     <text x="48" y="85" fill="#5d5e63" font-size="14">最终阶段 | 82 分 37 秒</text>
 
     <g font-size="13" fill="#303034">
-      <circle cx="54" cy="116" r="5" fill="#2875d9"/><text x="66" y="121">CPU · 平均 96.2%</text>
-      <circle cx="236" cy="116" r="5" fill="#3e9b5f"/><text x="248" y="121">可用内存 · 最低 5.7 GiB</text>
-      <circle cx="516" cy="116" r="5" fill="#7566ce"/><text x="528" y="121">swap-out · 累计 20.1 GiB</text>
+      <circle cx="54" cy="116" r="5" fill="#2875d9"/><text x="66" y="121">CPU | 平均 96.2%</text>
+      <circle cx="236" cy="116" r="5" fill="#3e9b5f"/><text x="248" y="121">可用内存 | 最低 5.7 GiB</text>
+      <circle cx="516" cy="116" r="5" fill="#7566ce"/><text x="528" y="121">swap-out | 累计 20.1 GiB</text>
       <circle cx="758" cy="116" r="5" fill="#d97445"/><text x="770" y="121">I/O wait</text>
     </g>
 
