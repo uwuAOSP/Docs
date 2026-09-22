@@ -1,15 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1000" height="720" viewBox="0 0 1000 720" role="img" aria-labelledby="title desc">
-  <title id="title">Uni runtime telemetry</title>
   <desc id="desc">CPU, available RAM, swap-out and I/O wait from the final 82 minutes and 37 seconds of a successful Uni build.</desc>
   <rect width="1000" height="720" rx="24" fill="#fbfbfa"/>
   <rect x="1" y="1" width="998" height="718" rx="23" fill="none" stroke="#e2e3e0"/>
   <g font-family="Outfit,Noto Sans CJK SC,PingFang SC,Microsoft YaHei,Yu Gothic,sans-serif">
-    <text x="48" y="58" fill="#1c1c1e" font-size="25" font-weight="700">Uni runtime telemetry</text>
     <text x="48" y="85" fill="#5d5e63" font-size="14">Final phase | 82m 37s</text>
     <g font-size="13" fill="#303034">
-      <circle cx="54" cy="116" r="5" fill="#2875d9"/><text x="66" y="121">CPU · 96.2% avg</text>
-      <circle cx="236" cy="116" r="5" fill="#3e9b5f"/><text x="248" y="121">Available RAM · 5.7 GiB min</text>
-      <circle cx="516" cy="116" r="5" fill="#7566ce"/><text x="528" y="121">Swap-out · 20.1 GiB total</text>
+      <circle cx="54" cy="116" r="5" fill="#2875d9"/><text x="66" y="121">CPU - 96.2% avg</text>
+      <circle cx="236" cy="116" r="5" fill="#3e9b5f"/><text x="248" y="121">Available RAM - 5.7 GiB min</text>
+      <circle cx="516" cy="116" r="5" fill="#7566ce"/><text x="528" y="121">Swap-out - 20.1 GiB total</text>
       <circle cx="758" cy="116" r="5" fill="#d97445"/><text x="770" y="121">I/O wait</text>
     </g>
     <rect x="36" y="146" width="928" height="250" rx="18" fill="#fff" stroke="#e2e3e0"/>
