@@ -127,6 +127,61 @@ uni --clean-logs
 uni --no-debug -j18 SystemUI
 ```
 
+## 签名 OTA
+
+Uni 的签名模式不修改设备树、`PRODUCT_DEFAULT_DEV_CERTIFICATE` 或 `out/target/product` 内的普通构建产物。它先增量构建 `target-files-package` 与 `otatools`，再在独立目录重签 target-files 并生成 OTA：
+
+```sh
+uni -j18 otapackage --sign-keys ~/.android-certs
+```
+
+密钥目录至少需要以下成对文件：
+
+```text
+releasekey.pk8 / releasekey.x509.pem
+platform.pk8   / platform.x509.pem
+shared.pk8     / shared.x509.pem
+media.pk8      / media.x509.pem
+```
+
+输出写入 `OUT_DIR/release/<product>/`，包括带时间戳的 signed target-files、signed OTA 与 OTA 的 `.sha256` 校验文件；不会覆盖普通 OTA。签名时使用构建出的 hermetic `sign_target_files_apks` 和 `ota_from_target_files`，不使用旧式的 `--block --backup=true` 参数。
+
+### APEX 与非默认 APK 密钥
+
+`--sign-keys` 会传递标准的 `-o -d <keys>` 映射。target-files 中存在额外 APK 或 APEX 密钥时，提供 JSON 配置：
+
+```json
+{
+  "key_mappings": {
+    "source/key/path": "custom-key"
+  },
+  "extra_apks": {
+    "com.android.example.apex": "releasekey"
+  },
+  "extra_apex_payload_keys": {
+    "com.android.example": "apex-payload-key.pem"
+  }
+}
+```
+
+配置中的相对路径以 `--sign-keys` 目录为基准：
+
+```sh
+uni -j18 otapackage --sign-keys ~/.android-certs --sign-config signing.json
+```
+
+### 隔离签名检查
+
+先对已有 target-files 做完整重签和 OTA 生成验证，不发布正式包：
+
+```sh
+uni --sign-keys ~/.android-certs --sign-check
+```
+
+检查产物写入 `OUT_DIR/release/<product>/checks/<timestamp>/`。该模式不启动 Android 构建，不改普通产物，也不覆盖正式签名包。`--sign-keys` 不允许和 `--trust-output` 或 `--assume-existing` 组合。
+
+已安装 test-key 系统不能把 release-key OTA 当作普通增量更新接收。首次更换 key 必须使用信任新 key 的 recovery、fastboot 完整刷入，或单独准备经过验证的 key migration 包。
+
 ## Uni 运行时遥测
 
 ![Uni 运行时遥测](assets/clean-build-time.svg)
