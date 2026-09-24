@@ -1,63 +1,53 @@
-# Soong-only 构建文档
+# Soong-only
 
-本文档说明 uwuAOSP 如何在 Android 产品配置仍由 Make 解析的前提下，使用 Soong
-生成构建目标、镜像和内核产物。文档同时说明 `uwu_kernel` 与旧版 Make 内核构建系统
-之间的配置关系。
+Android build graph 的生成过程中包含一个串行执行的 Kati 阶段。Kati 负责处理 Make
+构建规则，并生成相应的 Ninja 构建规则。
 
-## 为什么使用 Soong-only
+LineageOS 在 23.2 的 release blog 中提到：
 
-Soong 的目标是让 Android 构建不再依赖 Makefile 生成构建目标。产品配置仍可以使用
-Make，但构建目标和 Ninja 规则直接由 Soong 从模块图生成，从而跳过 Kati 的主目标
-生成阶段。
+> LineageOS is now nearly Android.mk free! Google announced their move from make to
+> soong many years ago, pushing developers to migrate from Android.mk to Android.bp,
+> and has started blocking Android.mk in many locations of the source tree.
 
-跳过 Kati 的主要收益是减少构建分析开销。Soong 官方说明中给出的目标是将分析时间
-降低到约一半，从而提高开发效率。这里的收益主要体现在构建启动和依赖图分析阶段；
-它不会跳过 Ninja 执行的编译动作，也不会跳过 `uwu_kernel` 内部调用的 Linux Kbuild。
+但是，一些核心构建组件仍然依赖 Make，因此 Kati 仍然是构建流程中不可跳过的一环。
 
-Soong-only 不能简单地理解为“删除所有 Make”。Make 仍负责产品配置和变量展开，
-但不再负责把 Android.mk 目标转换成主构建 Ninja 图。
+uwuAOSP 继续完成这项迁移的最后一步，使现代设备可以跳过 Kati 的主构建图生成阶段。
+在我们的测试中，这使 build graph 的生成时间近乎减半。产品配置（例如 BoardConfig）仍然使用 Make；
+Soong-only 并不意味着设备树中不能再使用 Makefile。
 
-## 文档导航
+## 迁移设备
 
-| 页面 | 内容 |
-| --- | --- |
-| [构建流程](build-flow.md) | `PRODUCT_SOONG_ONLY`、配置导出和 Soong 构建图 |
-| [镜像生成](image-generation.md) | fsgen、boot/DTBO/vbmeta/super 镜像和输出位置 |
-| [构建验证](validation.md) | 验证命令、产物检查和增量构建检查 |
-| [uwu_kernel 构建系统](uwu_kernel/) | `uwu_kernel` 的页面索引和职责边界 |
+对于现代设备，uwuAOSP 已经处理了大部分 Soong-only 所需的构建组件。设备 bringup
+时通常只需要迁移以下部分：
 
-## 基本概念
+- [`uwu_kernel`](uwu_kernel/)：替代 legacy kernel build task；
+- `uwu_prebuilt_image`：替代 Make 层的 `$(call add-radio-file, ...)`。
 
-Soong-only 不是完全移除 Make。产品配置仍需要 Make 读取产品继承关系和生成 Soong
-配置变量；区别在于产品配置完成后，主构建目标和 Ninja 规则由 Soong 生成，Kati 的
-主目标生成阶段不再执行。
+为简化设备 bringup，uwuCLI 已经提供相应的迁移脚本。脚本机械转换后，您仍应
+检查并验证自动生成的构建规则。
 
-一个产品使用 Soong-only 的必要配置是：
+要临时启用 Soong-only，请配置环境变量：
+
+```bash
+export SOONG_ONLY=true
+```
+
+也可以在产品配置中设置：
 
 ```make
 PRODUCT_SOONG_ONLY := true
 ```
 
-也可以使用命令行参数临时选择模式：
+> [!NOTE]
+> A-only 设备依赖的 `//bootable/deprecated-ota:updater` 尚未完成迁移，因此目前不能
+> 使用 Soong-only。如果您需要支持此类设备，请在 issue tracker 中提交 issue。
 
-```sh
-m --soong-only <target>
-m --no-soong-only <target>
-```
+## 验证
 
-`SOONG_ONLY=true` 是等价的环境变量入口。命令行参数优先于产品默认值。
+迁移完成后，请至少完成一次完整构建，并确认设备可以正常开机和使用主要功能。
+请勿通过固定的镜像列表判断迁移是否成功。
 
-设备的关键配置通常位于：
+以下设备已经完成 Soong-only 构建和启动验证：
 
-- `device/<vendor>/<device>/BoardConfig*.mk`：启用 Soong kernel 并指定模块；
-- `device/<vendor>/<device>/Android.bp`：声明 `uwu_kernel`；
-- `device/<vendor>/<device>/device.mk`：将 kernel 安装到产品；
-- `vendor/uwu/config/BoardConfigSoong.mk`：将 kernel 选择导出给 Soong。
-
-某个镜像是否生成由产品的分区配置决定，不能仅根据 Soong-only 模式推断所有镜像
-都存在。
-
-## 参考实现
-
-- Android 原生 Soong-only 说明：`build/soong/docs/soong_only.md`
-- Soong 最佳实践：`build/soong/docs/best_practices.md`
+- OnePlus 6T (`fajita`)
+- OnePlus Ace 3 / 12R (`aston(c)`)

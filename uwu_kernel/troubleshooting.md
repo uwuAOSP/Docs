@@ -1,104 +1,65 @@
 # uwu_kernel 故障排查
 
-## 找不到 kernel 模块
+## 修改 kernel 源码后没有重新编译
 
-确认 `SOONG_KERNEL_MODULE` 在 BoardConfig 阶段设置，并且模块名称和 Android.bp
-一致：
+首先确认修改的文件位于 `kernel_dir` 中。如果修改的是 external module，请确认它位于 `external_module_root` 中。
 
-```make
-BOARD_USES_SOONG_KERNEL := true
-SOONG_KERNEL_MODULE := //device/<vendor>/<device>:kernel
+`uwu_kernel` 会跟踪这些目录中的源码变化。只有位于这些目录之外、但仍需要作为 kernel build 输入的文件，才应通过 `srcs` 显式声明。
+
+不要使用：
+
+```bp
+srcs: ["**/*"],
 ```
 
-同时确认产品包含：
+这种方式将整个源码树展开为 Soong 输入会显著增加 Soong 分析和生成 build graph 的开销。遇到源码依赖没有被正确跟踪的问题时，应首先检查 `kernel_dir`、`external_module_root` 和实际源码位置。
 
-```make
-PRODUCT_PACKAGES += kernel
+## External module 构建失败
+
+首先确认 `external_module_root` 和 `external_modules` 指向正确的位置。
+
+普通 external module 会通过其自身的 Makefile 构建。如果该 module 需要使用主 kernel Kbuild 的 `M=` 模式，应使用 `:kbuild`：
+
+```bp
+external_modules: [
+    "vendor/example:kbuild",
+],
 ```
 
-不要只在产品 Makefile 后期设置 `SOONG_KERNEL_MODULE`。Soong mutator 和 fsgen 需要在
-模块分析阶段读取它。
+如果 module 可以被编译但无法正确安装，还应检查其生成的 `.ko` 是否位于 `uwu_kernel` 能够收集的 module 输出中。
 
-## 找不到配置文件
+## Kernel module 没有安装到预期分区
 
-无斜杠的配置名按以下路径解析：
+检查该 module 是否包含在对应分区的 install list 中。`uwu_kernel` 支持 `system_dlkm`、`vendor_dlkm`、`vendor_ramdisk` 和 `recovery`。
+
+Install list 决定 module 是否安装到该分区，load list 只决定其中哪些 modules 需要加载。不要为了安装一个 module 而将它加入 load list。
+
+如果启用了 `auto_collect_deps`，依赖 module 会根据 install list 自动补充；如果未启用，则应确保所需依赖已经包含在安装集合中。
+
+## Kernel module 没有加载
+
+首先确认 module 已安装到预期分区，然后检查它是否存在于该分区的 load list 中。
+
+`uwu_kernel` 要求：
 
 ```text
-<kernel_dir>/arch/<config_arch>/configs/<name>
+load list ⊆ install list
 ```
 
-包含路径的配置名按源码根目录解析，例如 `vendor/common.config` 对应源码根目录下的
-`vendor/common.config`。`x86_64` 的 defconfig 目录会转换为 `arch/x86/configs`。
-检查 `config.defconfig`、所有 fragment 是否存在，并确认
-fragment 的顺序没有依赖旧 Make 的隐式变量展开。
+如果 load list 中包含未安装到对应分区的 module，构建会直接失败。
 
-如果使用 `prebuilt` kernel，源码配置属性不会执行；应分别设置
-`prebuilt_config`、`prebuilt_headers` 和 `prebuilt_modules` 来提供对应输出。
+如果 module 已正确安装并存在于 load list，但设备启动后仍未加载，应继续检查生成的 `modules.load`、module dependencies、blocklist 和设备启动日志。此时问题通常已经不属于 `uwu_kernel` 的 module layout 配置本身。
 
-## 修改源码后没有重新编译
+## DTB 或 DTBO 构建失败
 
-检查：
+确认对应输出已经启用，并检查 `target`、`input_globs` 和实际 Kbuild 输出是否一致。
 
-1. 修改文件是否位于 `kernel_dir` 或 `external_module_root`；
-2. `source_deps/source.d` 是否包含对应目录；
-3. 是否手工修改了 `out/soong` 中间文件；
-4. 是否把源码放在了目录依赖之外且没有加入 `srcs`；
-5. action 的输出时间戳是否被外部脚本覆盖。
+使用 `qcom_merge` 时，`dtb.enabled` 和 `dtbo.enabled` 必须同时启用。该模式使用 `dtb.target` 构建设备树，并从生成的 DTS 输出中完成后续 DTB/DTBO 合并。
 
-不要通过 `srcs: ["**/*"]` 解决问题。应修正源码根目录或补充最小的额外输入。
+如果设备使用了不同于标准流程的设备树布局，应先确认能否通过 `target` 或 `input_globs` 描述；只有标准流程无法覆盖时才应使用 `custom_command`。
 
-## Headers 没有更新
+## Kernel configuration 与预期不一致
 
-确认 `generated_kernel_includes` 依赖的是当前 `uwu_kernel`，而不是
-`generated_kernel_includes_legacy`。然后检查：
+检查最终生成的 `.config`，不要只检查 defconfig、fragment 或 `overrides` 的源文件。
 
-```text
-out/soong/.intermediates/device/<vendor>/<device>/kernel/
-  <variant>/headers.timestamp
-out/soong/.intermediates/device/<vendor>/<device>/kernel/
-  <variant>/source_deps/source.d
-```
-
-headers action 会执行 Kbuild `headers_install`，随后运行
-`vendor/uwu/build/tools/clean_headers.sh`。如果 action 已执行但结果不完整，应检查
-kernel 的 UAPI 导出规则，而不是手工复制 headers。
-
-## DTB 或 DTBO 失败
-
-依次检查：
-
-- `dtb.enabled` 和 `dtbo.enabled` 是否符合 `qcom_merge` 的要求；
-- Kbuild `target` 是否真的生成了对应 DT 文件；
-- `input_globs` 是否匹配实际输出；
-- DTBO `page_size` 是否与 BoardConfig 和 bootloader 要求一致；
-- `custom_command` 是否使用了合法的 `$(kernelDir)`、`$(kernelOut)` 和 `$(out)`；
-- 使用 QCOM 合并时，`merge_dtbs.py` 的输入目录是否包含基础 DTB 和 techpack DT。
-
-不要直接编辑生成的 `.dtb` 或 `.dtbo`。
-
-## Modules 构建成功但没有安装
-
-确认模块同时出现在对应的 install list 和 load list。还要检查：
-
-- 模块所属分区是否是 `system_dlkm`、`vendor_dlkm`、`vendor_ramdisk` 或 `recovery`；
-- `external_module_root` 是否正确；
-- 普通 external module 是否应该改为 `path:kbuild`；
-- `module_aliases` 是否使用 `old.ko:new.ko`；
-- `auto_collect_deps` 是否需要启用；
-- blocklist 是否误用了模块 basename 以外的路径。
-
-不要把内部生成的 `kernel_modules_*` 模块手工添加到 `PRODUCT_PACKAGES`。
-
-## 工具链或 Perl 错误
-
-检查实际 action 是否使用 tree 内工具链和工具路径。常见问题包括：
-
-- `clang_version` 不存在；
-- 自定义 `clang_path` 缺少 `bin` 或 `lib`；
-- `DTC_EXT` 使用了错误的 host 输出；
-- 外部模块依赖宿主系统 Perl；
-- `make_command` 指向的工具不支持当前 Kbuild 参数。
-
-优先修正模块属性，不要在设备 Makefile 中重新拼接一套 PATH。
-
-如果启用 `rbe_wrapper`，确认它是完整的 rewrapper 命令，并且构建环境设置了 `TOP`。
+Kconfig 在合并 fragment、应用 LTO 配置和追加 override 后还会执行默认值处理，因此最终 `.config` 才是实际参与 kernel build 的配置。

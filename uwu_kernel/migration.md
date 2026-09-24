@@ -1,166 +1,269 @@
-# 从 Make 内核构建迁移到 uwu_kernel
+# 从 legacy kernel build 迁移到 uwu_kernel
 
-## 迁移原则
+## 使用 uwuCLI
 
-旧版 `vendor/uwu/build/tasks/kernel.mk` 使用全局变量、隐式 Make 规则和多个共享的
-中间目录。`uwu_kernel` 将 Android 侧的编排改为一个声明式模块，但底层 Kconfig、
-Kbuild、DTS 和模块编译仍由 kernel 源码执行。
+我们推荐使用 uwuCLI 完成初始转换：
 
-迁移不是把变量名称机械替换成小写属性。应先确定旧变量实际控制的是：
-
-- kernel 源码和工具链；
-- Kconfig 输入；
-- DTB/DTBO 输出；
-- kernel modules 的构建或安装；
-- Android boot/分区镜像。
-
-## 配置位置转换
-
-| 旧 Make 配置 | `uwu_kernel` 配置 | 说明 |
-| --- | --- | --- |
-| `TARGET_KERNEL_SOURCE` | `kernel_dir` | 源码目录，相对 Android 根目录 |
-| `KERNEL_ARCH` / `TARGET_KERNEL_ARCH` | `kernel_arch` | Kbuild 架构 |
-| `BOARD_KERNEL_IMAGE_NAME` | `image_name` | `arch/<arch>/boot` 下的输出文件名 |
-| `TARGET_PREBUILT_KERNEL` | `prebuilt` | 使用预编译 kernel，跳过源码构建 |
-| 预编译 kernel config | `prebuilt_config` | 提供 `.config` 输出 |
-| 预编译 kernel headers archive | `prebuilt_headers` | 提供 UAPI headers provider |
-| 预编译 kernel modules zip | `prebuilt_modules` | 提供 `.modules` 输出和分区 installer |
-| `TARGET_KERNEL_CONFIG` 第一个条目 | `config.defconfig` | 基础 defconfig |
-| `TARGET_KERNEL_CONFIG` 其余条目 | `config.fragments` | 按顺序合并的 fragment |
-| `TARGET_KERNEL_CONFIG_EXT` | `config.fragments` | 迁移为源码树中的显式配置路径 |
-| `KERNEL_CONFIG_OVERRIDE` | `config.overrides` | 最终追加的配置行 |
-| `MERGE_ALL_KERNEL_CONFIGS_AT_ONCE` | `config.merge_at_once` | 一次性或逐个合并 fragment |
-| `KERNEL_LTO` | `config.lto` | `none`、`thin` 或 `full` |
-| `TARGET_KERNEL_CLANG_VERSION` | `clang_version` | tree 内 Clang 版本 |
-| `TARGET_KERNEL_CLANG_PATH` | `clang_path` | 自定义 Clang 路径 |
-| `KERNEL_CLANG_TRIPLE` | `clang_triple` | 覆盖目标 triple |
-| `KERNEL_CROSS_COMPILE` | `cross_compile` | 交叉工具链前缀 |
-| `KERNEL_CC` | `cc`、`ld` 或 `make_flags` | 旧值若同时包含 `CC=` 和 `LD=`，应拆分后再填写 |
-| `KERNEL_MAKE_CMD` | `make_command` | Kbuild 使用的 make |
-| `KERNEL_MAKE_FLAGS` | `make_flags` | 传给每次 Kbuild 调用 |
-| `TARGET_KERNEL_ADDITIONAL_FLAGS` | `additional_flags` | 设备附加 Kbuild flags |
-| `CLANG_AUTOFDO_PROFILE` | `autofdo_profile` | AutoFDO profile；默认可使用 GKI profile |
-| kernel rewrapper 配置 | `rbe_wrapper` | 仅包装实际编译动作 |
-| `TARGET_KERNEL_MIXED_MODE` | 设备和分区配置 | 不再作为 kernel action 的全局开关 |
-
-`TARGET_KERNEL_VERSION` 通常不属于 kernel 编译参数。QCOM 平台和 HAL 选择逻辑可能
-仍然使用它，迁移时应保留并按平台需要设置。
-
-## DTB/DTBO 转换
-
-| 旧 Make 配置 | `uwu_kernel` 配置 |
-| --- | --- |
-| `BOARD_DTB_CFG` | `dtb.config` |
-| `BOARD_DTBO_CFG` | `dtbo.config` |
-| `BOARD_KERNEL_SEPARATED_DTBO` | `dtbo.enabled` 和设备 DT 配置 |
-| `TARGET_MERGE_DTBS_WILDCARD` | `dtb.input_globs` |
-| `TARGET_DTB_LIST_WILDCARD` | `dtb.input_globs` |
-| `TARGET_MERGE_DTBOS_WILDCARD` | `dtbo.input_globs` |
-| `TARGET_DTBO_LIST_WILDCARD` | `dtbo.input_globs` |
-| `BOARD_CUSTOM_DTBIMG_MK` | `dtb.custom_command` 或通用 Soong 能力 |
-| `BOARD_CUSTOM_DTBOIMG_MK` | `dtbo.custom_command` 或通用 Soong 能力 |
-| QCOM merge dtbs 脚本 | `dtb.qcom_merge: true`，同时启用 DTB/DTBO |
-| `BOARD_KERNEL_PAGESIZE` | Android boot/DTBO 分区相关配置；DTBO 使用 `page_size` |
-
-旧 Make 变量有时只表达“是否进入某个规则”，而新属性还需要表达实际输入、输出
-和 target。转换时应检查生成的命令和镜像内容，而不是只检查属性是否存在。
-
-## Modules 转换
-
-旧系统将模块构建、安装分区和加载清单分散在多个变量中。新系统集中到
-`modules`：
-
-| 旧 Make 配置 | `modules` 属性 |
-| --- | --- |
-| `BOARD_KERNEL_MODULES` / kernel `modules` target | `build_targets` |
-| `TARGET_KERNEL_EXT_MODULE_ROOT` | `external_module_root` |
-| 外部模块列表 | `external_modules` |
-| `*_KERNEL_MODULES_LOAD` | 对应 `*_module_load_list` |
-| `*_KERNEL_MODULES` 或 include 清单 | 对应 `*_module_install_list` |
-| `BOARD_*_KERNEL_MODULES_BLOCKLIST` | 对应 `*_module_blocklist` |
-| `TARGET_AUTO_COLLECT_KERNEL_MODULE_DEPS` | `auto_collect_deps` |
-| `BOARD_KERNEL_MODULES_LOAD_ALLOW_MISSING` | `allow_missing_load` |
-| 模块文件重命名规则 | `module_aliases` |
-| `NEED_KERNEL_MODULE_ROOT` | 按实际分区重新声明，不直接迁移 |
-| `NEED_KERNEL_MODULE_SYSTEM` | `system_dlkm` 或实际 system 安装属性 |
-| `NEED_KERNEL_MODULE_VENDOR_OVERLAY` | 重新建模为对应 filesystem 依赖 |
-
-`install_list` 和 `load_list` 必须同时存在，且 load list 中的模块必须出现在
-install list。清单中可以使用路径，Soong 会按模块 basename 验证和生成结果。
-
-## 设备转换示例
-
-迁移时在设备的 `BoardConfig.mk` 和 `device.mk` 中接入 Soong kernel：
-
-```make
-# BoardConfig.mk
-BOARD_USES_SOONG_KERNEL := true
-SOONG_KERNEL_MODULE := //device/<vendor>/<device>:kernel
-
-# device.mk
-ifeq ($(BOARD_USES_SOONG_KERNEL),true)
-PRODUCT_PACKAGES += kernel
-endif
+```bash
+uwu
 ```
 
-对应的 Android.bp 以声明式方式提供 kernel、DTB、DTBO、modules、config 和工具链：
+请按照提示选择设备和 kernel migration。
+
+uwuCLI 会读取现有设备配置，并尽可能转换已有的 kernel build 设置。自动生成的配置未必是最终结果。迁移完成后，请您按照以下说明检查 kernel configuration、DTB/DTBO 和 kernel modules 是否符合设备实际情况。
+
+## Kernel
+
+Legacy kernel build 通常使用以下变量指定 kernel：
+
+```make
+TARGET_KERNEL_SOURCE := kernel/<vendor>/<kernel>
+TARGET_KERNEL_ARCH := arm64
+BOARD_KERNEL_IMAGE_NAME := Image
+```
+
+迁移后，这些信息由 `uwu_kernel` 模块直接声明：
 
 ```bp
 uwu_kernel {
     name: "kernel",
+
     kernel_dir: "kernel/<vendor>/<kernel>",
     kernel_arch: "arm64",
     image_name: "Image",
-    clang_version: "clang-r<version>",
-    additional_flags: [
-        "CONFIG_DEVICE_DTB=y",
-    ],
-    config: {
-        defconfig: "gki_defconfig",
-        fragments: [
-            "vendor/common.config",
-            "vendor/device.config",
-        ],
-    },
-    dtb: {
-        enabled: true,
-        qcom_merge: true,
-        target: "dtbs",
-        image_name: "dtb.img",
-    },
-    dtbo: {
-        enabled: true,
-        target: "dtbs",
-        image_name: "dtbo.img",
-        page_size: 4096,
-    },
 }
 ```
 
-## 不能直接转换的配置
+工具链、额外的 Kbuild flags 和其他特殊配置只在设备确实需要时声明。完整属性请参阅 [配置参考](configuration.md)。
 
-以下旧配置需要人工判断，不能简单替换：
+## Kernel configuration
 
-- `TARGET_KERNEL_PLATFORM_TARGET`：这是外部 kernel platform/Kleaf 编排，不等价于
-  `kernel_dir`；
-- 旧 Make 的 RBE 全局变量不会自动迁移；应在模块中显式设置 `rbe_wrapper`；
-- 自定义 DTB/DTBO Makefile：应优先补充通用 `uwu_kernel` 能力；
-- `NEED_KERNEL_MODULE_*`：它们同时改变 Android 安装路径和分区依赖；
-- 外部模块的独立 Makefile：需要决定使用普通 external module 还是 `:kbuild`；
-- 通过 `$(shell)` 生成配置或清单：必须改成 Soong action 的显式输入输出；
-- 依赖 `KERNEL_OUT`、`DTB_OUT` 或 `DTBO_OUT` 具体路径的脚本：应改为模块标签。
+Legacy kernel build 可以通过 `TARGET_KERNEL_CONFIG`、`TARGET_KERNEL_ADDITIONAL_FLAGS` 等变量指定 kernel configuration 和额外的 build flags。
 
-迁移完成后删除已被 `uwu_kernel` 接管的旧 kernel 编译变量，但保留仍被 Android
-平台、boot image、HAL namespace 或分区配置需求的变量。
+例如：
+
+```make
+TARGET_KERNEL_CONFIG := \
+    gki_defconfig \
+    vendor/device.config
+
+TARGET_KERNEL_ADDITIONAL_FLAGS := \
+    CONFIG_EXAMPLE=y
+```
+
+迁移后应直接表达相同的配置关系：
+
+```bp
+additional_flags: [
+    "CONFIG_EXAMPLE=y",
+],
+
+config: {
+    defconfig: "gki_defconfig",
+    fragments: [
+        "vendor/device.config",
+    ],
+},
+```
+
+## DTB 和 DTBO
+
+常规设备可以直接声明对应输出：
+
+```bp
+dtb: {
+    enabled: true,
+    target: "dtbs",
+    image_name: "dtb.img",
+},
+
+dtbo: {
+    enabled: true,
+    target: "dtbs",
+    image_name: "dtbo.img",
+    page_size: 4096,
+},
+```
+
+若要使用 Qualcomm DT merge，请向 `dtb` 指定 `qcom_merge`。启用此选项时，`dtb.enabled` 和 `dtbo.enabled` 必须同时为 `true`：
+
+```bp
+dtb: {
+    enabled: true,
+    qcom_merge: true,
+    target: "dtbs",
+    image_name: "dtb.img",
+},
+
+dtbo: {
+    enabled: true,
+    target: "dtbs",
+    image_name: "dtbo.img",
+    page_size: 4096,
+},
+```
+
+## Kernel modules
+
+Kernel modules 是迁移时最需要您人工检查的部分。
+
+Legacy kernel build 将 module 的安装位置和 load list 分散在多个 Make 变量和外部列表中，两者之间还存在交叉引用。例如设备可能同时存在：
+
+```make
+BOARD_SYSTEM_KERNEL_MODULES_LOAD
+BOARD_VENDOR_KERNEL_MODULES_LOAD
+BOARD_VENDOR_RAMDISK_KERNEL_MODULES_LOAD
+BOOT_KERNEL_MODULES
+SYSTEM_KERNEL_MODULES
+```
+
+`uwu_kernel` 不使用这些 legacy 变量。对于每个需要安装 kernel modules 的分区，您必须分别指定：
+
+1. install list，即哪些 modules 应安装到该分区；
+2. load list，即哪些 modules 需要从该分区加载。
+
+例如：
+
+```bp
+modules: {
+    enabled: true,
+
+    system_dlkm_module_install_list: [
+        "modules.include.system_dlkm",
+    ],
+    system_dlkm_module_load_list: [
+        "modules.load.system_dlkm",
+    ],
+
+    vendor_dlkm_module_install_list: [
+        "modules.include.vendor_dlkm",
+    ],
+    vendor_dlkm_module_load_list: [
+        "modules.load.vendor_dlkm",
+    ],
+},
+```
+
+Install list 描述 **这个分区包含什么**，load list 描述 **需要加载什么**。
+
+因此必须满足：
+
+```text
+load list ⊆ install list
+```
+
+`uwu_kernel` 会在构建时检查这一关系。如果 load list 中存在未包含在对应 install list 中的 module，构建将失败。`uwu_kernel` 不会因为一个 module 出现在 load list 中，就自动推断它应该被安装。
+
+这项设计是有意的。最终 module layout 应当能够直接从设备配置中确认，而不需要重新推导规则。
+
+uwuCLI 会解析 legacy kernel module 配置及其引用的静态 module list，并据此生成对应的 install 和 load list 配置。如果现有配置无法被可靠转换，uwuCLI 会告知您。自动转换完成后，您仍应检查各分区的 install 和 load list 是否符合设备实际情况。
+
+### 自动收集 module dependencies
+
+Install list 不需要手工列出其中 modules 的所有依赖。启用 `auto_collect_deps` 后，`uwu_kernel` 会根据 install list 中的 modules 自动收集其依赖，并将这些依赖加入最终的 install list：
+
+```bp
+modules: {
+    enabled: true,
+    auto_collect_deps: true,
+
+    vendor_dlkm_module_install_list: [
+        "modules.include.vendor_dlkm",
+    ],
+    vendor_dlkm_module_load_list: [
+        "modules.load.vendor_dlkm",
+    ],
+},
+```
+
+`auto_collect_deps` 只补充 install list 所需的 module dependencies，不会根据 load list 推断哪些 modules 应当安装。您仍应明确指定设备需要的 install list 和 load list。
+
+### External modules
+
+如果设备使用独立于主 kernel tree 的 external modules，请指定 external module root 和需要构建的 modules：
+
+```bp
+modules: {
+    enabled: true,
+
+    external_module_root: "kernel/<vendor>/<device>-modules",
+    external_modules: [
+        "vendor/example",
+    ],
+},
+```
+
+默认情况下，`uwu_kernel` 使用 external module 自身的 build system 构建 module，并向其提供 kernel source 和 output directory 等信息。
+
+如果 external module 是主 kernel Kbuild tree 的一部分，并需要通过 Kbuild 的 `M=` 方式构建，请在 module 路径后添加 `:kbuild`：
+
+```bp
+modules: {
+    enabled: true,
+
+    external_module_root: "kernel/<vendor>/<device>-modules",
+    external_modules: [
+        "vendor/example:kbuild",
+    ],
+},
+```
+
+这等价于通过主 kernel build system 对该目录执行 `M=<module> modules` 和对应的 `modules_install`。不要为了保留 legacy kernel build 的形式而为此复制额外的 Make rule。
+
+具体属性和支持的 module 配置请参阅 [配置参考](configuration.md)。
+
+## 接入 Android build
+
+定义 `uwu_kernel` 后，需要让 Android build 使用该模块。
+
+请在设备配置中选择 Soong kernel：
+
+```make
+BOARD_USES_SOONG_KERNEL := true
+SOONG_KERNEL_MODULE := //device/<vendor>/<device>:kernel
+```
+
+并将 kernel 加入产品：
+
+```make
+PRODUCT_PACKAGES += kernel
+```
+
+其他模块应通过 `uwu_kernel` 的公开输出引用 kernel 产物。请勿依赖 `out/soong/.intermediates` 中的具体路径。
+
+可用输出请参阅 [输出](outputs.md)。
+
+## 无法自动迁移的配置
+
+部分 legacy 配置表达的不只是 kernel build 参数，因此不能安全地机械转换。
+
+常见情况包括：
+
+- 自定义 DTB/DTBO Makefile；
+- 依赖 `KERNEL_OUT`、`DTB_OUT` 或 `DTBO_OUT` 具体路径的脚本；
+- 平台专用 kernel build wrapper。
+
+遇到这些配置时，应先确认它们最终想得到什么结果，再用 `uwu_kernel` 表达这个结果。
+
+不要为了逐行复现 legacy Make implementation，而重新在 Soong 中建立同样的隐式规则。
+
+如果某种行为被多个设备共同需要，但当前 `uwu_kernel` 无法表达，请向 Issue Tracker 提出 Issue。
 
 ## 验证
 
-迁移提交应至少验证：
+迁移后首先进行正常构建：
 
-1. kernel 默认输出和 `boot.img` 生成；
-2. `.config` 包含基础配置、fragment、override 和 LTO 结果；
-3. DTB/DTBO 的输入、合并方式、page size 和最终镜像正确；
-4. kernel headers 能被 `generated_kernel_includes` 消费；
-5. modules 的构建、安装集合、load list 和 blocklist 正确；
-6. 源码、UAPI header、配置和清单修改能够触发对应增量 action；
-7. Soong-only 与 Soong+Make 的 target-files 或镜像差异可解释。
+```bash
+uni
+```
+
+至少确认：
+
+- kernel image 可以正常生成；
+- 最终 `.config` 与设备预期一致；
+- DTB/DTBO 可以生成并正常启动；
+- kernel modules 安装到了正确的分区；
+- modules load list 与实际启动需求一致；
+- 设备可以正常启动并使用。
+
+常见问题请参阅 [故障排查](troubleshooting.md)。
