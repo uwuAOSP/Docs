@@ -16,6 +16,23 @@ uwu
 
 维护者信息将被显示在 设置 -> 系统 -> 软件更新 中。
 
+### 手动改造
+
+请在设备树 `device.mk` 或等效 Makefile 中配置以下 Flag：
+
+```
+# Device type
+# Select from phone, tablet, or foldable.
+UWU_DEVICE_TYPE := phone
+
+# Whether the device supports telephony
+# Select from true or false.
+UWU_SUPPORTS_TELEPHONY := true
+
+# OPTIONAL: Device maintainer
+UWU_MAINTAINER := Akaza_Akari
+```
+
 ## 可选项（第二阶段）
 
 > [!WARNING]
