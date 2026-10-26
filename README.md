@@ -11,15 +11,15 @@ uni 不改变 Ninja 的依赖关系。普通增量构建仍然根据源码、构
 ```sh
 source build/envsetup.sh
 lunch uwu_nabu-cp2a-userdebug
-uni -j18 otapackage
+uni otapackage
 ```
 
-`-j18` 为 Ninja 全局并发上限。根据构建主机的核心数和内存调整，不同主机不应固定使用相同数值。
+uni 会根据构建主机的资源情况自动计算并发数，无需指定 `-j`。
 
 构建单独模块：
 
 ```sh
-uni -j18 SystemUI Settings Launcher3QuickStep
+uni SystemUI Settings Launcher3QuickStep
 ```
 
 重新运行同一目标时，uni 会检查构建图和磁盘产物的复用条件。正常增量构建不需要额外的恢复参数。
@@ -31,7 +31,7 @@ uni -j18 SystemUI Settings Launcher3QuickStep
 1. **准备构建图**：检查产品、release、variant、目标参数、环境和构建系统指纹。条件未变化时复用已保存的 Soong/Blueprint 构建图；否则重新准备构建图。
 2. **安排任务**：从 Ninja 图读取目标，结合历史耗时、R8 目标和内核目标决定启动顺序。历史长任务优先安排，R8 任务分散到多个批次。
 3. **启动阶段**：优先处理必要的内核和历史长任务。内核链接尽量避开 Kotlin、Java 和 R8 的高内存工作。
-4. **主构建**：由 Ninja 执行剩余目标。uni 为 Java、Kotlin、Rust、R8 和其他高内存任务设置各自的资源池，保留用户传入的全局 `-j`。
+4. **主构建**：由 Ninja 执行剩余目标。uni 为 Java、Kotlin、Rust、R8 和其他高内存任务设置各自的资源池，自动调整全局构建并发。
 5. **最终阶段**：重新检查构建图状态，然后执行打包、分发及 OTA 目标，记录已完成阶段。
 
 构建中断后，已生成的输出和阶段状态会保留。再次构建时，uni 重新检查磁盘状态，不需要删除 `out`。
@@ -69,7 +69,7 @@ G ≤ 0:
 
 ### 任务资源池
 
-设 `B` 为单任务内存准入预算，`J` 为全局 `-j`，`P` 为该资源池的并发上限：
+设 `B` 为单任务内存预算，`J` 为 uni 确定的全局并发数，`P` 为资源池并发上限：
 
 ```text
 P = max(1, min(J, floor((A - 3 GiB) / B)))
@@ -103,9 +103,9 @@ Rust 并发上限 = min(P_Rust, ceil(J / C))
 
 ## 编译缓存与终端
 
-uni 记录 ccache 命中情况，并根据可用磁盘空间管理缓存上限。缓存的实际收益应以同一工作树的前后构建日志为依据。
+uni 记录 ccache 命中情况，并根据可用磁盘空间管理缓存上限。
 
-交互终端展示 Graph、Kernel、Startup、Main、R8 及内存状态，支持查看构建详情、复制终端内容和中断构建。终端 UI 不改变 Ninja 任务依赖。
+交互终端展示 Graph、Kernel、Startup、Main、R8 及内存状态，支持查看构建详情、复制终端内容和中断构建。
 
 ## 构建图复用与恢复
 
@@ -118,7 +118,7 @@ uni 记录 ccache 命中情况，并根据可用磁盘空间管理缓存上限�
 
 源码或构建规则变化时，使用普通增量构建重新准备受影响的图。
 
-以下参数只适用于已经确认磁盘状态和源码一致的情况：
+以下参数用于手动控制构建图复用：
 
 | 参数 | 行为 |
 | --- | --- |
@@ -126,26 +126,24 @@ uni 记录 ccache 命中情况，并根据可用磁盘空间管理缓存上限�
 | `--assume-existing` | 接受 Ninja 日志缺失但磁盘上存在的输出，同时启用 `--trust-output` |
 | `--force-reuse` | 跳过源码新鲜度检查，强制复用保存的构建图 |
 
-这些参数不应作为构建失败的通用修复方式。
-
 ## 常用命令
 
 查看调度计划，不执行 Ninja：
 
 ```sh
-uni --plan -j18 otapackage
+uni --plan otapackage
 ```
 
 本次构建重新生成完整 R8 索引：
 
 ```sh
-uni --dev -j18 otapackage
+uni --dev otapackage
 ```
 
 持久启用 R8 索引自动刷新：
 
 ```sh
-uni --dev-auto -j18 otapackage
+uni --dev-auto otapackage
 ```
 
 清理 uni/Soong 日志，不删除编译产物：
@@ -157,7 +155,7 @@ uni --clean-logs
 关闭本次详细调试报告：
 
 ```sh
-uni --no-debug -j18 SystemUI
+uni --no-debug SystemUI
 ```
 
 ## OTA 签名
@@ -181,7 +179,7 @@ uni --init-signing-keys ~/.android-certs
 完成 `lunch` 后执行：
 
 ```sh
-uni -j18 otapackage --sign-keys ~/.android-certs
+uni otapackage --sign-keys ~/.android-certs
 ```
 
 uni 构建 `target-files-package` 和 `otatools`，使用构建产物中的 `sign_target_files_apks` 和 `ota_from_target_files` 进行签名，不覆盖普通 OTA 产物。
@@ -217,7 +215,7 @@ OUT_DIR/release/<product>/
 相对路径以 `--sign-keys` 指定的目录为基准。APEX payload 私钥须满足对应 APEX 的签名要求，不能使用基础 APK 密钥代替。该配置不会自动替换 AVB 密钥。
 
 ```sh
-uni -j18 otapackage --sign-keys ~/.android-certs --sign-config signing.json
+uni otapackage --sign-keys ~/.android-certs --sign-config signing.json
 ```
 
 ### 验证签名
@@ -236,7 +234,7 @@ uni --sign-keys ~/.android-certs --sign-check
 
 ## 运行时遥测
 
-以下图表保留原站点的 2026 年 9 月 14 日构建采样，覆盖最终阶段的 82 分 37 秒。数据来自该次构建日志的 telemetry 字段，不代表完整构建期间的资源使用情况。
+下图展示 2026 年 9 月 14 日一次 uni 构建最终阶段的运行数据，采样时长为 82 分 37 秒。
 
 ![uni 运行时遥测](assets/clean-build-time.svg)
 
@@ -247,18 +245,20 @@ uni --sign-keys ~/.android-certs --sign-check
 - **累计 swap-out**：该阶段累计换出的数据量；曲线增长表示发生了新的换出活动。
 - **I/O wait**：CPU 等待 I/O 的时间比例。
 
-横轴为最终构建阶段的经过时间。应结合阶段边界及原始日志分析，不能仅凭这次采样推断其他设备上的构建性能。
+横轴为经过时间，便于查看构建期间的资源变化。
 
 ## 输出与故障排查
 
-构建结束后，uni 输出一次结果摘要，包含构建阶段、总耗时、最低可用内存、swap-out 和输出位置。
+构建结束后，uni 输出包含阶段、耗时、内存及输出位置的摘要。
 
-日志位于 `OUT_DIR`：
+**构建失败时，首先检查 `out/error.log`。** 该文件集中记录构建错误，方便定位失败原因。
+
+如需查看完整输出和调度详情，可继续检查 `OUT_DIR` 中的日志：
 
 ```text
 uwuCli-output_<timestamp>.log
 uwuCli-debug-report_<timestamp>.log
 ```
 
-构建失败时，先检查日志中的第一个实际编译错误。末尾的 `FAILED: ninja` 只表示构建任务失败；`signal: killed` 需要结合 OOM 记录和内存压力进一步诊断。修复后重新构建必要目标，通常无需删除 `out`。
+修复错误后，直接重新运行 uni 即可继续增量构建。
 
