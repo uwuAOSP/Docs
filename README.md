@@ -1,44 +1,49 @@
-# uwuBackGroundManager
+# Background management
 
-**English** | [简体中文](./CN.md)
-
-uwuBackGroundManager applies background behavior per app. It can freeze idle apps while preserving memory state, or improve retention for apps that must continue running.
+`uwuBackGroundManager` applies process-management policies to individual apps. It can freeze idle processes while preserving their memory, or reduce the restrictions applied to selected background apps.
 
 ## App modes
 
-- **Default** leaves the app under Android's native process management.
-- **Tombstone** freezes eligible processes after the app becomes idle.
-- **Full** does not freeze the app. It limits OOM adjustment to the perceptible-app level and adds the app to the Device Idle allowlist.
+| Mode | Behavior |
+| --- | --- |
+| Default | Uses Android's standard background management |
+| Tombstone | Freezes an eligible app after it becomes idle |
+| Full | Does not freeze the app; limits OOM adjustment to the perceptible-app level and adds the app to the Device Idle allowlist |
 
-Policies are stored per Android user and package name in `Settings.Secure`. `system_server` observes changes and applies the effective mode to processes sharing the app UID.
+Policies are stored per Android user and package in `Settings.Secure`. `system_server` observes policy changes and applies the configured mode to processes sharing the UID.
 
-Tombstone tracks visible activities, foreground services, broadcasts, executing services, instrumentation, audio playback and recording, location, VPN, Binder activity, and AOSP freezer exemptions. Protected states temporarily prevent freezing. A Binder request wakes the whole UID so the app can process it; the UID can be frozen again after it becomes idle instead of following AOSP's frozen-process termination path.
+Full mode reduces certain process reclamation and Doze restrictions. It does not prevent force stops, crashes, voluntary exits, or termination under severe memory pressure.
 
-Full reduces process reclamation and Doze restrictions, but it does not guarantee permanent survival. Force stop, crashes, voluntary exit, and severe memory pressure can still terminate the app.
+## Tombstone eligibility
 
-## Freezer backend
+Before freezing an app, the framework checks visible activities, foreground services, broadcasts, executing services, instrumentation, audio playback and capture, location, VPN, Binder activity, and Android freezer exemptions.
 
-The settings page offers Automatic, CGroup1, CGroup2, and Hybrid backends. The system detects the mounted cgroup layout and freezer support:
+Once the protected state ends, the app can enter the freeze queue again. If a frozen UID receives a Binder request, the framework unfreezes that UID to handle the request and can freeze it again when idle, rather than terminating the frozen process through the standard AOSP path.
 
-- Automatic selects a backend supported by the current device.
-- Unsupported manual choices are disabled in the UI.
-- If a stored choice becomes invalid, the framework falls back to an available backend. Tombstone freezing is skipped when no usable freezer exists.
+## Freezer backends
 
-Tombstone also requires Binder implementations for `BINDER_FREEZE`, `BINDER_GET_FROZEN_INFO`, and frozen-transaction tracking. Declaring ioctl numbers without the matching driver behavior is insufficient. Full mode does not require freezer-specific kernel interfaces.
+The settings page offers Automatic, CGroup1, CGroup2, and Hybrid.
 
-## Recents behavior
+- Automatic detects available freezer implementations from the mounted cgroup layout.
+- Unsupported manual options are disabled.
+- If a selected backend is no longer available, the framework falls back to a supported backend.
+- Tombstone freezing is skipped when no usable freezer backend exists.
 
-“Ignore launcher task removal” applies only to Tombstone and Full apps. Swiping a card away removes it from Recents while allowing the task and process to remain. Force stop still terminates the app.
-
-## Diagnostic log
-
-The settings page can export a local diagnostic log. Entries use `[INFO]`, `[WARN]`, and `[ERROR]` labels and include build data, app policies, requested and active backends, cgroup controllers and mounts, Binder nodes, kernel freezer state, and framework events. Exporting reads local state only and does not upload the file.
-
-## Kernel requirements
+### Kernel requirements
 
 - CGroup1 requires a writable freezer controller.
-- CGroup2 requires a writable `cgroup.freeze` interface.
-- The Android Binder driver and userspace must use matching freeze UAPI structures and command numbers.
-- Android userspace must be able to access the selected cgroup hierarchy.
+- CGroup2 requires writable `cgroup.freeze`.
+- Binder freezing requires implementations of `BINDER_FREEZE`, `BINDER_GET_FROZEN_INFO`, and frozen-transaction tracking, using UAPI definitions matching userspace.
+- The Android userspace freezer must be enabled and have access to the selected hierarchy.
 
-This feature is inspired by [Cirno](https://github.com/Freezer-Team/Cirno.git).
+Declaring Binder ioctl numbers without implementing the corresponding driver behavior is insufficient. Full mode does not require these freezer-specific interfaces.
+
+## Recents
+
+“Ignore launcher task removal” applies only to Tombstone and Full. Dismissing a card removes it from Recents without necessarily ending its task or process. Force stop still terminates the app.
+
+## Diagnostics
+
+The settings page can export a local report containing build information, configured and selected backends, cgroup controllers and mounts, Binder devices, kernel freezer state, app policies, and framework events. The report uses `[INFO]`, `[WARN]`, and `[ERROR]` labels. Export does not upload the file.
+
+This feature is inspired by [Cirno](https://github.com/Freezer-Team/Cirno).
