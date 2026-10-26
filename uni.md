@@ -262,4 +262,3 @@ uwuCli-debug-report_<timestamp>.log
 
 构建失败时，先检查日志中的第一个实际编译错误。末尾的 `FAILED: ninja` 只表示构建任务失败；`signal: killed` 需要结合 OOM 记录和内存压力进一步诊断。修复后重新构建必要目标，通常无需删除 `out`。
 
-原始功能与参数参考：[当前在线 uni 文档](https://uwuaosp.uwuniverse.org/docs/uni/)。
