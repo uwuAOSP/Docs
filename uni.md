@@ -238,7 +238,7 @@ uni --sign-keys ~/.android-certs --sign-check
 
 以下图表保留原站点的 2026 年 9 月 14 日构建采样，覆盖最终阶段的 82 分 37 秒。数据来自该次构建日志的 telemetry 字段，不代表完整构建期间的资源使用情况。
 
-<UniBuildCharts locale="zh" />
+![uni 运行时遥测](assets/clean-build-time.svg)
 
 图表中的指标包括：
 
