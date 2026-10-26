@@ -19,7 +19,7 @@ Launcher 一览显示在主屏幕第一屏顶部，包括日期、天气、闹�
 - 「显示一览」控制第一屏状态区域，默认开启。
 - 「使用 Smartspacer」允许已安装并获得授权的 Smartspacer 提供卡片，默认关闭。
 
-未启用 Smartspacer 时使用内置一览。
+Smartspacer 不可用时，会自动切回内置一览。
 
 ## 数据来源
 
