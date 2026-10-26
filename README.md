@@ -1,6 +1,12 @@
-# Uni 构建系统
+# uni 构建系统
 
-Uni 是 uwuAOSP 的本机构建调度器。它仍使用 Soong、Kati 和 Ninja 生成并执行 Android 构建规则，但在执行前保存构建图状态、拆分关键阶段，并按实时资源给高内存任务分配独立资源池。
+uni 是 Android 构建调度器，使用现有的 Soong、Kati 和 Ninja 构建规则，在其上增加构建图复用、任务排序、资源池和中断恢复。
+
+uni 不改变 Ninja 的依赖关系。普通增量构建仍然根据源码、构建规则和现有产物决定需要执行的任务。
+
+## 构建 Android
+
+在源码根目录初始化环境并选择产品：
 
 ```sh
 source build/envsetup.sh
@@ -8,72 +14,68 @@ lunch uwu_nabu-cp2a-userdebug
 uni -j18 otapackage
 ```
 
-模块增量构建使用相同入口：
+`-j18` 为 Ninja 全局并发上限。根据构建主机的核心数和内存调整，不同主机不应固定使用相同数值。
+
+构建单独模块：
 
 ```sh
 uni -j18 SystemUI Settings Launcher3QuickStep
 ```
 
-## 工作原理
+重新运行同一目标时，uni 会检查构建图和磁盘产物的复用条件。正常增量构建不需要额外的恢复参数。
 
-一次完整构建分为准备、启动和最终 Ninja 阶段：
+## 构建流程
 
-1. **准备**：检查产品、release、variant、目标参数、环境和构建系统指纹。指纹未变化时复用已保存的 Soong/Blueprint 构建图；变化时才重新生成 Android.bp 图。
-2. **建立任务集**：从产品的 Ninja 图读取可构建目标，结合历史耗时、R8 目标和内核目标计算启动顺序。长任务被提前，R8 目标分散到批次中，避免最后集中排队。
-3. **启动阶段**：完整构建优先处理需要先完成的内核或历史长任务。内核链接默认与 Kotlin、Java、R8 等高内存任务错开，减少同时换页。
-4. **主阶段**：剩余目标交给 Ninja 执行。全局 `-j` 仍由用户指定，Java、Kotlin、Rust、R8 和其他高内存任务通过环境变量使用各自的准入池。
-5. **最终阶段**：验证构建图没有在中途变化，再执行打包、分发和 OTA 目标。阶段完成后写入状态，下一次构建可从已完成产物继续。
-6. **恢复**：发生中断或持续内存压力时，保留状态和已有输出。恢复运行会重新读取磁盘状态，不删除可复用产物；自动资源池只在确认压力后降低。
+完整构建按以下顺序执行：
 
-Uni 不替换依赖关系检查，也不会把真实的源码变化隐藏掉。它只减少重复的准备工作和无效的等待。
+1. **准备构建图**：检查产品、release、variant、目标参数、环境和构建系统指纹。条件未变化时复用已保存的 Soong/Blueprint 构建图；否则重新准备构建图。
+2. **安排任务**：从 Ninja 图读取目标，结合历史耗时、R8 目标和内核目标决定启动顺序。历史长任务优先安排，R8 任务分散到多个批次。
+3. **启动阶段**：优先处理必要的内核和历史长任务。内核链接尽量避开 Kotlin、Java 和 R8 的高内存工作。
+4. **主构建**：由 Ninja 执行剩余目标。uni 为 Java、Kotlin、Rust、R8 和其他高内存任务设置各自的资源池，保留用户传入的全局 `-j`。
+5. **最终阶段**：重新检查构建图状态，然后执行打包、分发及 OTA 目标，记录已完成阶段。
 
-## 相比 Make 做了什么
+构建中断后，已生成的输出和阶段状态会保留。再次构建时，uni 重新检查磁盘状态，不需要删除 `out`。
 
-原生 `make`/`m` 把整个 Ninja 图交给统一的全局并发。Uni 在此基础上增加：
+## 资源管理
 
-- **构建图复用**：记录产品、版本、变体、目标参数、图文件状态和构建源码指纹，条件未变化时跳过重复准备。
-- **关键路径前置**：按历史任务耗时优先处理长任务，并把 R8 目标分散到多个阶段，减少尾部集中等待。
-- **内核阶段隔离**：完整构建先执行必要的嵌套内核目标，避免内核链接和 R8、Kotlin 同时争用内存。
-- **独立资源池**：R8、Java、Kotlin、Rust 和其他高内存任务分别计算并发，Ninja 全局 `-j` 不被改写。
-- **Rust 并发约束**：同时考虑 `rustc` 数量和每个进程的 codegen units，避免 LLVM 后端把一个 Ninja 任务再次放大成过多线程。
-- **分段恢复**：阶段结束保存 Ninja 恢复状态。压力中止后，已完成输出继续复用。
-- **编译缓存**：记录 ccache 命中，并按磁盘余量维护缓存上限。
-- **可观测性**：输出阶段耗时、内存、swap、PSI、CPU、进程峰值、资源池和源码版本。
-- **终端界面**：显示 Graph、Kernel、Startup、Main、R8 和内存状态；支持详情、复制模式和完整中断。
+uni 使用 `/proc/meminfo` 的 `MemTotal` 和 `MemAvailable` 计算构建资源预算。
 
-## 资源计算公式
+### Soong Go 堆预算
 
-Uni 使用 `/proc/meminfo` 的 `MemTotal` 和 `MemAvailable`。下面的量均以 GiB 计：
+以下变量的单位均为 GiB：
+
+| 变量 | 含义 |
+| --- | --- |
+| `T` | `MemTotal` |
+| `A` | `MemAvailable` |
+| `R` | 系统、文件缓存和 Soong 非 Go 堆预留 |
+| `H` | 构建进程的活动内存预留 |
+| `G` | Go 堆预算 |
 
 ```text
-T = MemTotal
-A = MemAvailable
 R = max(4, 0.25 × T)
 H = min(6, max(4, 0.20 × T))
-```
-
-`R` 是留给 Soong 非 Go 堆、系统和文件缓存的内存，`H` 是构建进程启动时预留的活动进程空间。Android.bp 分析的 Go 堆上限 `G` 按下面的规则计算：
-
-```text
 L = T - R
-若 A > H：G = min(L, max(A / 2, A - H))
-若 A ≤ H：G = A / 2
-若结果 ≤ 0：G = max(1, T / 2)
+
+A > H:
+    G = min(L, max(A / 2, A - H))
+A ≤ H:
+    G = A / 2
+G ≤ 0:
+    G = max(1, T / 2)
 ```
 
-这不是给单个 `soong_build` 进程设置的硬 RSS 上限。Soong 的 Go 堆之外还会分配 C/C++、文件映射和工具链内存，所以必须给非 Go 内存留下空间。
+`G` 不限制整个 `soong_build` 进程的 RSS。Go 堆之外仍可能使用 C/C++ 内存、文件映射和工具链内存。
 
 ### 任务资源池
 
-对于每种任务，`B` 是并发准入预算，`J` 是用户的全局 `-j`，资源池并发为：
+设 `B` 为单任务内存准入预算，`J` 为全局 `-j`，`P` 为该资源池的并发上限：
 
 ```text
 P = max(1, min(J, floor((A - 3 GiB) / B)))
 ```
 
-预算如下：
-
-| 任务 | `B` |
+| 任务类型 | `B` |
 | --- | ---: |
 | Java | 2 GiB |
 | Rust | 2 GiB |
@@ -81,77 +83,122 @@ P = max(1, min(J, floor((A - 3 GiB) / B)))
 | R8 | 5 GiB |
 | Kotlin | 5 GiB |
 
-Rust 还要限制 LLVM codegen units。若 `C` 是 codegen units，则 Rust 池不会超过：
+Rust 同时考虑 `rustc` 进程和 LLVM codegen units。设每个进程的 codegen units 为 `C`：
 
 ```text
-min(PRust, ceil(J / C))
+Rust 并发上限 = min(P_Rust, ceil(J / C))
 ```
 
-显式设置 `NINJA_HIGHMEM_NUM_JOBS`、`NINJA_UNI_R8_NUM_JOBS`、`NINJA_UNI_RUST_NUM_JOBS`、`NINJA_UNI_JAVA_NUM_JOBS` 或 `NINJA_UNI_KOTLIN_NUM_JOBS` 时，该池使用用户给出的值。否则每个阶段重新读取 `MemAvailable` 计算，不为所有电脑写死同一组并发。
+可以通过以下环境变量覆盖对应资源池的自动计算值：
 
-## 构建图与增量恢复
+| 环境变量 | 任务 |
+| --- | --- |
+| `NINJA_HIGHMEM_NUM_JOBS` | 通用高内存任务 |
+| `NINJA_UNI_R8_NUM_JOBS` | R8 |
+| `NINJA_UNI_RUST_NUM_JOBS` | Rust |
+| `NINJA_UNI_JAVA_NUM_JOBS` | Java |
+| `NINJA_UNI_KOTLIN_NUM_JOBS` | Kotlin |
 
-正常复用要求以下内容保持一致：
+未显式配置时，uni 在构建阶段重新读取 `MemAvailable` 并计算资源池并发。
+
+## 编译缓存与终端
+
+uni 记录 ccache 命中情况，并根据可用磁盘空间管理缓存上限。缓存的实际收益应以同一工作树的前后构建日志为依据。
+
+交互终端展示 Graph、Kernel、Startup、Main、R8 及内存状态，支持查看构建详情、复制终端内容和中断构建。终端 UI 不改变 Ninja 任务依赖。
+
+## 构建图复用与恢复
+
+正常复用需要检查：
 
 - 产品、release、variant 和目标参数
-- Android.bp、Blueprint、Make、Soong、Blueprint 和产品配置指纹
-- 已生成 Ninja 图及其输入文件状态
-- 构建器版本和关键环境变量
+- Android.bp、Blueprint、Make、Soong 和产品配置指纹
+- Ninja 图及输入文件状态
+- 构建器版本和相关环境变量
 
-源码或构建规则变化时，Uni 会重新准备受影响的图。仅在确认磁盘上的输出与当前源码匹配时，才使用恢复参数：
+源码或构建规则变化时，使用普通增量构建重新准备受影响的图。
+
+以下参数只适用于已经确认磁盘状态和源码一致的情况：
 
 | 参数 | 行为 |
 | --- | --- |
-| `--trust-output` | 跳过恢复输出的新鲜度校验 |
-| `--assume-existing` | 接受 Ninja 日志缺失但磁盘存在的输出，同时启用 `--trust-output` |
-| `--force-reuse` | 跳过源码新鲜度检查，强制复用保存的图 |
+| `--trust-output` | 跳过恢复输出的新鲜度检查 |
+| `--assume-existing` | 接受 Ninja 日志缺失但磁盘上存在的输出，同时启用 `--trust-output` |
+| `--force-reuse` | 跳过源码新鲜度检查，强制复用保存的构建图 |
 
-这些参数不会改变依赖关系。产品、分支或构建规则变化后，应使用普通增量构建让 Uni 更新图。
+这些参数不应作为构建失败的通用修复方式。
 
 ## 常用命令
 
+查看调度计划，不执行 Ninja：
+
 ```sh
-# 查看调度，不运行 Ninja
 uni --plan -j18 otapackage
+```
 
-# 本次重新生成完整 R8 索引
+本次构建重新生成完整 R8 索引：
+
+```sh
 uni --dev -j18 otapackage
+```
 
-# 持久开启 R8 索引自动刷新
+持久启用 R8 索引自动刷新：
+
+```sh
 uni --dev-auto -j18 otapackage
+```
 
-# 清理 Uni/Soong 构建日志，不删除编译产物
+清理 uni/Soong 日志，不删除编译产物：
+
+```sh
 uni --clean-logs
+```
 
-# 关闭本次详细调试报告
+关闭本次详细调试报告：
+
+```sh
 uni --no-debug -j18 SystemUI
 ```
 
-## 签名 OTA
+## OTA 签名
 
-在 Android 源码树中一次性初始化密钥。目录必须位于源码树外，且事先不存在；不需要 `lunch` 或构建：
+### 初始化签名密钥
+
+在 Android 源码树中执行：
 
 ```sh
 uni --init-signing-keys ~/.android-certs
 ```
 
-Uni 生成 LineageOS 基础密钥集合：`bluetooth`、`cyngn-app`、`media`、`networkstack`、`nfc`、`platform`、`releasekey`、`sdk_sandbox`、`shared`、`testcert`、`verity`，并将 `testkey` 指向 `releasekey`。私钥是未加口令的 PKCS#8 文件；目录权限为 `0700`，密钥文件权限为 `0600`。该命令遇到已存在的目录会报错，绝不覆盖手动生成或以前发布使用的密钥。
+密钥目录必须位于源码树之外，且此前不存在。初始化不要求 `lunch`，也不会启动 Android 构建。
 
-把整个密钥目录安全备份到源码树和构建磁盘之外。删除源码树或 `out` 后，仍从原目录读取同一批密钥；若密钥本身丢失，重新生成的新密钥不能直接用于原设备的常规 OTA 更新。
+生成的基础密钥包括 `bluetooth`、`cyngn-app`、`media`、`networkstack`、`nfc`、`platform`、`releasekey`、`sdk_sandbox`、`shared`、`testcert` 和 `verity`，其中 `testkey` 指向 `releasekey`。
 
-完成 `lunch` 后，Uni 增量构建 `target-files-package` 与 `otatools`，再在独立目录重签 target-files 并生成 OTA：
+私钥使用未加口令的 PKCS#8 格式。目录权限为 `0700`，密钥文件权限为 `0600`。必须将完整密钥目录备份到独立存储；丢失后重新生成的密钥不能直接代替已发布系统所信任的密钥。
+
+### 生成签名 OTA
+
+完成 `lunch` 后执行：
 
 ```sh
 uni -j18 otapackage --sign-keys ~/.android-certs
 ```
 
-已有手动生成的密钥目录可直接传给 `--sign-keys`，无需初始化。后续每次发布使用同一个目录。Uni 不会修改手动密钥目录。由 `--init-signing-keys` 创建的目录会在首次签名时，根据 target-files 的 `META/apexkeys.txt` 为非 `PRESIGNED` APEX 自动生成 4096 位密钥；后续复用原密钥。新增 APEX 只会增加新密钥，不替换旧密钥，因此备份时也要包含 `apex/` 子目录。
+uni 构建 `target-files-package` 和 `otatools`，使用构建产物中的 `sign_target_files_apks` 和 `ota_from_target_files` 进行签名，不覆盖普通 OTA 产物。
 
-输出写入 `OUT_DIR/release/<product>/`，包括带时间戳的 signed target-files、signed OTA 与 OTA 的 `.sha256` 校验文件；不会覆盖普通 OTA。签名时使用构建出的 hermetic `sign_target_files_apks` 和 `ota_from_target_files`，不使用旧式的 `--block --backup=true` 参数。
+对于 uni 初始化的密钥目录，首次签名时根据 `META/apexkeys.txt` 为非 `PRESIGNED` APEX 创建所需的 4096 位密钥。后续签名复用已有密钥。新增 APEX 可能产生新的密钥文件，备份时应包含 `apex/` 子目录。
 
-### APEX 与非默认 APK 密钥
+签名产物保存到：
 
-`--sign-keys` 会传递标准的 `-o -d <keys>` 映射。手动密钥目录、非默认 APK 或需要指定其他 APEX 密钥的设备，可以另行准备并长期保存对应密钥，再提供 JSON 配置：
+```text
+OUT_DIR/release/<product>/
+```
+
+其中包括 signed target-files、signed OTA 和 `.sha256` 校验文件。
+
+### 自定义 APK 与 APEX 密钥
+
+使用 `--sign-config` 指定 JSON 配置：
 
 ```json
 {
@@ -167,37 +214,51 @@ uni -j18 otapackage --sign-keys ~/.android-certs
 }
 ```
 
-配置中的相对路径以 `--sign-keys` 目录为基准。APEX payload 私钥须符合对应 APEX 的签名要求，不能用上述 2048 位基础 APK 密钥代替；AVB 密钥不会由此配置自动替换：
+相对路径以 `--sign-keys` 指定的目录为基准。APEX payload 私钥须满足对应 APEX 的签名要求，不能使用基础 APK 密钥代替。该配置不会自动替换 AVB 密钥。
 
 ```sh
 uni -j18 otapackage --sign-keys ~/.android-certs --sign-config signing.json
 ```
 
-### 隔离签名检查
+### 验证签名
 
-先对已有 target-files 做完整重签和 OTA 生成验证，不发布正式包：
+对已有 target-files 执行独立的签名及 OTA 生成检查：
 
 ```sh
 uni --sign-keys ~/.android-certs --sign-check
 ```
 
-检查产物写入 `OUT_DIR/release/<product>/checks/<timestamp>/`。该模式不启动 Android 构建，不改普通产物，也不覆盖正式签名包。`--sign-keys` 不允许和 `--trust-output` 或 `--assume-existing` 组合。
+结果保存在 `OUT_DIR/release/<product>/checks/<timestamp>/`，不启动 Android 构建，也不覆盖普通构建或正式签名产物。
 
-已安装 test-key 系统不能把 release-key OTA 当作普通增量更新接收。首次更换 key 必须使用信任新 key 的 recovery、fastboot 完整刷入，或单独准备经过验证的 key migration 包。
+签名模式不能与 `--trust-output` 或 `--assume-existing` 同时使用。
 
-## Uni 运行时遥测
+已安装 test-key 系统的设备不能将使用新 release-key 的 OTA 当作普通增量更新。首次更换密钥必须使用信任新密钥的 Recovery、完整 Fastboot 刷入，或经过单独验证的密钥迁移方案。
 
-![Uni 运行时遥测](assets/clean-build-time.svg)
+## 运行时遥测
 
-图表按日志 telemetry 字段绘制 CPU、`MemAvailable`、累计 `swap-out` 与 `iowait`。横轴为最终构建阶段的经过时间。
+以下图表保留原站点的 2026 年 9 月 14 日构建采样，覆盖最终阶段的 82 分 37 秒。数据来自该次构建日志的 telemetry 字段，不代表完整构建期间的资源使用情况。
 
-## 输出与排查
+![uni 运行时遥测](assets/clean-build-time.svg)
 
-构建结束时，Uni 输出一份结果摘要，包括阶段数、最低可用内存、swap-out、包或输出目录和总时长。默认日志位于 `OUT_DIR`：
+图表中的指标包括：
+
+- **CPU**：采样时的处理器使用率。
+- **MemAvailable**：Linux 对可用内存的估计值，包含部分可回收缓存。
+- **累计 swap-out**：该阶段累计换出的数据量；曲线增长表示发生了新的换出活动。
+- **I/O wait**：CPU 等待 I/O 的时间比例。
+
+横轴为最终构建阶段的经过时间。应结合阶段边界及原始日志分析，不能仅凭这次采样推断其他设备上的构建性能。
+
+## 输出与故障排查
+
+构建结束后，uni 输出一次结果摘要，包含构建阶段、总耗时、最低可用内存、swap-out 和输出位置。
+
+日志位于 `OUT_DIR`：
 
 ```text
 uwuCli-output_<timestamp>.log
 uwuCli-debug-report_<timestamp>.log
 ```
 
-失败时先读取日志中的第一个真实编译错误。末尾的 `FAILED: ninja` 或 `signal: killed` 只说明最终状态，不能单独确定根因。
+构建失败时，先检查日志中的第一个实际编译错误。末尾的 `FAILED: ninja` 只表示构建任务失败；`signal: killed` 需要结合 OOM 记录和内存压力进一步诊断。修复后重新构建必要目标，通常无需删除 `out`。
+
