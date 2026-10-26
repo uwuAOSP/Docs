@@ -26,4 +26,3 @@ adb shell wm moment set-scale SCALE
 | `close-all` | 将所有 Moment 恢复到全屏 |
 | `set-scale` | 设置调试用默认缩放比例 |
 
-这些命令用于开发调试，不代替持久用户设置。部分临时状态不会在重启后保留。
