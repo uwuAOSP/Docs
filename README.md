@@ -1,20 +1,22 @@
 # 系统小图标
 
-系统小图标用于切换系统界面的图标资源。目前提供系统默认图标和 PUI 两种样式。
+系统小图标提供「默认」和「PUI」两组系统资源样式。样式切换通过 Android Runtime Resource Overlay（RRO）完成。
 
-## 使用
+## 选择样式
 
-进入 **uwuAOSP Plus → 界面设置 → 系统小图标**，选择：
+进入 **uwuAOSP Plus > 界面设置 > 系统小图标**。
 
-- **默认**：关闭 uwuAOSP 提供的图标覆盖，恢复各组件原始资源。
-- **PUI**：启用 PUI 风格的系统图标。
+| 选项 | 行为 |
+| --- | --- |
+| 默认 | 关闭自定义覆盖层，恢复各组件原始图标资源 |
+| PUI | 启用已预装的 PUI 风格图标覆盖层 |
 
-选择后，系统通过一次 OverlayManager 事务批量切换所有兼容的资源覆盖，并保存当前选择。设置、SystemUI、Launcher 等正在运行的界面可能需要重新打开或重启对应进程后才会全部刷新。
+系统通过一次 `OverlayManager` 事务切换兼容的 RRO，并保存所选样式。Settings、SystemUI 和 Launcher 等已启动界面可能需要重新打开或重新启动相应进程，才能全部刷新。
 
-## 工作原理
+## 实现与兼容性
 
-PUI 图标以源码形式放在 `vendor/uwu/overlay/rro_packages/PUI`，随 ROM 编译为可变 RRO。设置页只控制这些已安装覆盖层，不会下载、安装或执行第三方 APK。
+PUI 资源位于 `vendor/uwu/overlay/rro_packages/PUI`，随系统源码编译为 RRO。设置页仅控制设备中已安装的覆盖层，不下载或执行第三方 APK。
 
-设备只会启用当前系统中实际存在且可兼容的覆盖层。如果产品没有包含 PUI 资源，或 OverlayManager 拒绝事务，页面会给出明确的应用失败提示并保留原有样式。
+没有包含 PUI 资源的产品，以及 `OverlayManager` 拒绝应用覆盖的情况，不会强制切换；设置页显示失败原因，原有样式保持不变。
 
-PUI 资源来源于 **PUI Theme For Stock Android v17.0.218**，原作者为天伞桜；uwuAOSP 将其整理为可从源码编译的系统资源覆盖。
+PUI 图标来源于 **PUI Theme For Stock Android v17.0.218**，原作者为**天伞桜**。项目将其整理为随系统编译的资源覆盖。
