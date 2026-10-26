@@ -48,4 +48,4 @@ Full 可以减少部分进程回收和 Doze 限制，但不能保证应用持续
 
 日志使用 `[INFO]`、`[WARN]` 和 `[ERROR]` 等等级。导出操作不自动上传数据。
 
-本功能的墓碑设计参考 [Cirno](https://github.com/search?q=Cirno+Android+freezer&type=repositories)。
+本功能的墓碑设计参考 [Cirno](https://github.com/Freezer-Team/Cirno)。
