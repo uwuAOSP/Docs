@@ -232,11 +232,7 @@ uni --sign-keys ~/.android-certs --sign-check
 
 ## 运行时遥测
 
-下图展示 2026 年 9 月 14 日一次 uni 构建最终阶段的运行数据，采样时长为 82 分 37 秒。
-
 ![uni 运行时遥测](assets/clean-build-time.svg)
-
-图表显示 CPU 使用率、可用内存（`MemAvailable`）、累计 swap-out 和 I/O wait。横轴为构建经过时间。
 
 ## 输出与故障排查
 
