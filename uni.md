@@ -1,8 +1,8 @@
-# Uni 构建系统
+# uni 构建系统
 
-Uni 是 Android 构建调度器，使用现有的 Soong、Kati 和 Ninja 构建规则，在其上增加构建图复用、任务排序、资源池和中断恢复。
+uni 是 Android 构建调度器，使用现有的 Soong、Kati 和 Ninja 构建规则，在其上增加构建图复用、任务排序、资源池和中断恢复。
 
-Uni 不改变 Ninja 的依赖关系。普通增量构建仍然根据源码、构建规则和现有产物决定需要执行的任务。
+uni 不改变 Ninja 的依赖关系。普通增量构建仍然根据源码、构建规则和现有产物决定需要执行的任务。
 
 ## 构建 Android
 
@@ -22,7 +22,7 @@ uni -j18 otapackage
 uni -j18 SystemUI Settings Launcher3QuickStep
 ```
 
-重新运行同一目标时，Uni 会检查构建图和磁盘产物的复用条件。正常增量构建不需要额外的恢复参数。
+重新运行同一目标时，uni 会检查构建图和磁盘产物的复用条件。正常增量构建不需要额外的恢复参数。
 
 ## 构建流程
 
@@ -31,14 +31,14 @@ uni -j18 SystemUI Settings Launcher3QuickStep
 1. **准备构建图**：检查产品、release、variant、目标参数、环境和构建系统指纹。条件未变化时复用已保存的 Soong/Blueprint 构建图；否则重新准备构建图。
 2. **安排任务**：从 Ninja 图读取目标，结合历史耗时、R8 目标和内核目标决定启动顺序。历史长任务优先安排，R8 任务分散到多个批次。
 3. **启动阶段**：优先处理必要的内核和历史长任务。内核链接尽量避开 Kotlin、Java 和 R8 的高内存工作。
-4. **主构建**：由 Ninja 执行剩余目标。Uni 为 Java、Kotlin、Rust、R8 和其他高内存任务设置各自的资源池，保留用户传入的全局 `-j`。
+4. **主构建**：由 Ninja 执行剩余目标。uni 为 Java、Kotlin、Rust、R8 和其他高内存任务设置各自的资源池，保留用户传入的全局 `-j`。
 5. **最终阶段**：重新检查构建图状态，然后执行打包、分发及 OTA 目标，记录已完成阶段。
 
-构建中断后，已生成的输出和阶段状态会保留。再次构建时，Uni 重新检查磁盘状态，不需要删除 `out`。
+构建中断后，已生成的输出和阶段状态会保留。再次构建时，uni 重新检查磁盘状态，不需要删除 `out`。
 
 ## 资源管理
 
-Uni 使用 `/proc/meminfo` 的 `MemTotal` 和 `MemAvailable` 计算构建资源预算。
+uni 使用 `/proc/meminfo` 的 `MemTotal` 和 `MemAvailable` 计算构建资源预算。
 
 ### Soong Go 堆预算
 
@@ -99,7 +99,13 @@ Rust 并发上限 = min(P_Rust, ceil(J / C))
 | `NINJA_UNI_JAVA_NUM_JOBS` | Java |
 | `NINJA_UNI_KOTLIN_NUM_JOBS` | Kotlin |
 
-未显式配置时，Uni 在构建阶段重新读取 `MemAvailable` 并计算资源池并发。
+未显式配置时，uni 在构建阶段重新读取 `MemAvailable` 并计算资源池并发。
+
+## 编译缓存与终端
+
+uni 记录 ccache 命中情况，并根据可用磁盘空间管理缓存上限。缓存的实际收益应以同一工作树的前后构建日志为依据。
+
+交互终端展示 Graph、Kernel、Startup、Main、R8 及内存状态，支持查看构建详情、复制终端内容和中断构建。终端 UI 不改变 Ninja 任务依赖。
 
 ## 构建图复用与恢复
 
@@ -142,7 +148,7 @@ uni --dev -j18 otapackage
 uni --dev-auto -j18 otapackage
 ```
 
-清理 Uni/Soong 日志，不删除编译产物：
+清理 uni/Soong 日志，不删除编译产物：
 
 ```sh
 uni --clean-logs
@@ -178,9 +184,9 @@ uni --init-signing-keys ~/.android-certs
 uni -j18 otapackage --sign-keys ~/.android-certs
 ```
 
-Uni 构建 `target-files-package` 和 `otatools`，使用构建产物中的 `sign_target_files_apks` 和 `ota_from_target_files` 进行签名，不覆盖普通 OTA 产物。
+uni 构建 `target-files-package` 和 `otatools`，使用构建产物中的 `sign_target_files_apks` 和 `ota_from_target_files` 进行签名，不覆盖普通 OTA 产物。
 
-对于 Uni 初始化的密钥目录，首次签名时根据 `META/apexkeys.txt` 为非 `PRESIGNED` APEX 创建所需的 4096 位密钥。后续签名复用已有密钥。新增 APEX 可能产生新的密钥文件，备份时应包含 `apex/` 子目录。
+对于 uni 初始化的密钥目录，首次签名时根据 `META/apexkeys.txt` 为非 `PRESIGNED` APEX 创建所需的 4096 位密钥。后续签名复用已有密钥。新增 APEX 可能产生新的密钥文件，备份时应包含 `apex/` 子目录。
 
 签名产物保存到：
 
@@ -228,9 +234,15 @@ uni --sign-keys ~/.android-certs --sign-check
 
 已安装 test-key 系统的设备不能将使用新 release-key 的 OTA 当作普通增量更新。首次更换密钥必须使用信任新密钥的 Recovery、完整 Fastboot 刷入，或经过单独验证的密钥迁移方案。
 
+## 运行时遥测
+
+构建日志记录 CPU、`MemAvailable`、swap-out、I/O wait、PSI、任务资源峰值和阶段耗时。可用历史日志比较不同调度及资源池设置的效果。
+
+原站点提供了 2026-09-14 一次成功构建最终阶段的遥测图表。该记录只代表当时的构建条件，不作为对所有主机的性能结论。
+
 ## 输出与故障排查
 
-构建结束后，Uni 输出一次结果摘要，包含构建阶段、总耗时、最低可用内存、swap-out 和输出位置。
+构建结束后，uni 输出一次结果摘要，包含构建阶段、总耗时、最低可用内存、swap-out 和输出位置。
 
 日志位于 `OUT_DIR`：
 
@@ -241,4 +253,4 @@ uwuCli-debug-report_<timestamp>.log
 
 构建失败时，先检查日志中的第一个实际编译错误。末尾的 `FAILED: ninja` 只表示构建任务失败；`signal: killed` 需要结合 OOM 记录和内存压力进一步诊断。修复后重新构建必要目标，通常无需删除 `out`。
 
-原始功能与参数参考：[当前在线 Uni 文档](https://uwuaosp.uwuniverse.org/docs/uni/)。
+原始功能与参数参考：[当前在线 uni 文档](https://uwuaosp.uwuniverse.org/docs/uni/)。
