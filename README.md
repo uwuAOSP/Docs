@@ -2,7 +2,7 @@
 
 uni 是 Android 构建调度器，使用现有的 Soong、Kati 和 Ninja 构建规则，在其上增加构建图复用、任务排序、资源池和中断恢复。
 
-uni 不改变 Ninja 的依赖关系。普通增量构建仍然根据源码、构建规则和现有产物决定需要执行的任务。
+uni 直接复用现有的 Soong、Kati 和 Ninja 构建规则。
 
 ## 构建 Android
 
@@ -22,7 +22,7 @@ uni 会根据构建主机的资源情况自动计算并发数，无需指定 `-j
 uni SystemUI Settings Launcher3QuickStep
 ```
 
-重新运行同一目标时，uni 会检查构建图和磁盘产物的复用条件。正常增量构建不需要额外的恢复参数。
+后续构建直接运行相同命令即可增量编译。
 
 ## 构建流程
 
@@ -65,7 +65,7 @@ G ≤ 0:
     G = max(1, T / 2)
 ```
 
-`G` 不限制整个 `soong_build` 进程的 RSS。Go 堆之外仍可能使用 C/C++ 内存、文件映射和工具链内存。
+`G` 是 Soong 的 Go 堆预算。
 
 ### 任务资源池
 
@@ -103,9 +103,9 @@ Rust 并发上限 = min(P_Rust, ceil(J / C))
 
 ## 编译缓存与终端
 
-uni 记录 ccache 命中情况，并根据可用磁盘空间管理缓存上限。
+uni 记录 ccache 命中情况，并根据磁盘余量管理缓存大小。
 
-交互终端展示 Graph、Kernel、Startup、Main、R8 及内存状态，支持查看构建详情、复制终端内容和中断构建。
+交互终端展示 Graph、Kernel、Startup、Main、R8 和内存状态，可查看任务详情并中断构建。
 
 ## 构建图复用与恢复
 
@@ -116,7 +116,7 @@ uni 记录 ccache 命中情况，并根据可用磁盘空间管理缓存上限�
 - Ninja 图及输入文件状态
 - 构建器版本和相关环境变量
 
-源码或构建规则变化时，使用普通增量构建重新准备受影响的图。
+源码或构建规则变更后，uni 会更新构建图。
 
 以下参数用于手动控制构建图复用：
 
@@ -186,13 +186,13 @@ uni 构建 `target-files-package` 和 `otatools`，使用构建产物中的 `sig
 
 对于 uni 初始化的密钥目录，首次签名时根据 `META/apexkeys.txt` 为非 `PRESIGNED` APEX 创建所需的 4096 位密钥。后续签名复用已有密钥。新增 APEX 可能产生新的密钥文件，备份时应包含 `apex/` 子目录。
 
-签名产物保存到：
+签名产物位于：
 
 ```text
 OUT_DIR/release/<product>/
 ```
 
-其中包括 signed target-files、signed OTA 和 `.sha256` 校验文件。
+包含 signed target-files、signed OTA 和 `.sha256` 校验文件。
 
 ### 自定义 APK 与 APEX 密钥
 
@@ -220,13 +220,13 @@ uni otapackage --sign-keys ~/.android-certs --sign-config signing.json
 
 ### 验证签名
 
-对已有 target-files 执行独立的签名及 OTA 生成检查：
+检查已有的 target-files 签名：
 
 ```sh
 uni --sign-keys ~/.android-certs --sign-check
 ```
 
-结果保存在 `OUT_DIR/release/<product>/checks/<timestamp>/`，不启动 Android 构建，也不覆盖普通构建或正式签名产物。
+检查结果保存在 `OUT_DIR/release/<product>/checks/<timestamp>/`。
 
 签名模式不能与 `--trust-output` 或 `--assume-existing` 同时使用。
 
@@ -238,14 +238,7 @@ uni --sign-keys ~/.android-certs --sign-check
 
 ![uni 运行时遥测](assets/clean-build-time.svg)
 
-图表中的指标包括：
-
-- **CPU**：采样时的处理器使用率。
-- **MemAvailable**：Linux 对可用内存的估计值，包含部分可回收缓存。
-- **累计 swap-out**：该阶段累计换出的数据量；曲线增长表示发生了新的换出活动。
-- **I/O wait**：CPU 等待 I/O 的时间比例。
-
-横轴为经过时间，便于查看构建期间的资源变化。
+图表显示 CPU 使用率、可用内存（`MemAvailable`）、累计 swap-out 和 I/O wait。横轴为构建经过时间。
 
 ## 输出与故障排查
 
