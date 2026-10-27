@@ -1,8 +1,8 @@
 # uni 构建系统
 
-uni 是 Android 构建调度器，使用现有的 Soong、Kati 和 Ninja 构建规则，在其上增加构建图复用、任务排序、资源池和中断恢复。
+uni 是 uwuAOSP 构建调度器，使用现有的 Soong、Kati 和 Ninja 构建规则，在其上增加构建图复用、任务排序、资源池和中断恢复。
 
-## 构建 Android
+## 构建 OTA
 
 在源码根目录初始化环境并选择产品：
 
