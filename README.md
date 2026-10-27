@@ -37,7 +37,7 @@ UWU_MAINTAINER := Akaza_Akari
 
 ### 配置 OTA 更新 {#ota-updates}
 
-原生更新器从维护者提供的 HTTPS 地址读取更新列表，再下载和安装设备对应的 OTA 包。本节使用 `packages/apps/Updater` 中的 `Updater`，应用包名为 `org.uwuaosp.updater`。
+原生更新器从维护者提供的 HTTPS 地址读取更新列表，再下载和安装设备对应的 OTA 包。
 
 #### 1. 设置更新源
 
@@ -64,7 +64,7 @@ PRODUCT_PACKAGE_OVERLAYS += device/<vendor>/<device>/overlay
 | `{type}` | `ro.uwu.releasetype`，转换为小写 |
 | `{incr}` | `ro.build.version.incremental`，用于按已安装构建返回增量更新 |
 
-例如，设备代号为 `sheng`、渠道为 `UNOFFICIAL` 时，上述地址会变成 `https://ota.example.org/sheng/unofficial.json`。更新源默认为空；未配置时不执行在线检查，本地导入仍可使用。
+例如，设备代号为 `sheng`、渠道为 `UNOFFICIAL` 时，上述地址会变成 `https://ota.example.org/sheng/unofficial.json`。
 
 #### 2. 生成并发布更新包
 
@@ -83,11 +83,11 @@ sha256sum "$ota_package"
 stat -c %s "$ota_package"
 ```
 
-将 `ota_package` 改为构建输出的实际路径。不要使用 Fastboot 包或 target-files ZIP，也不要在计算校验值后重新打包或修改 OTA。
+将 `ota_package` 改为最终签名 OTA ZIP 的实际路径。
 
 #### 3. 发布更新列表
 
-在更新源地址提供 JSON 数组。每条更新只包含一个文件；没有可用更新时返回 `[]`，不要套用旧版接口的 `{"response": [...]}` 格式。
+在更新源地址提供 JSON 数组。每条更新的 `files` 数组包含一个 OTA 文件；没有可用更新时返回 `[]`。
 
 下面是结构示例，所有字段均需替换为目标构建和最终签名 ZIP 的实际值：
 
@@ -113,27 +113,25 @@ stat -c %s "$ota_package"
 
 | 字段 | 填写方式 |
 | --- | --- |
-| `datetime` | OTA 元数据的 `post-timestamp`，单位为秒，不是上传时间 |
-| `type` | 目标系统的 `ro.uwu.releasetype`；仅向相同渠道提供更新，不区分大小写 |
-| `version` | 目标系统的 `ro.uwu.release`，不能用已安装版本推算 |
-| `filename` | 最终 OTA ZIP 的文件名，不包含目录 |
+| `datetime` | OTA 元数据的 `post-timestamp`，单位为秒 |
+| `type` | 目标系统的 `ro.uwu.releasetype`；与已安装系统的渠道匹配，忽略大小写 |
+| `version` | 目标系统的 `ro.uwu.release` |
+| `filename` | 最终 OTA ZIP 的文件名（basename） |
 | `size` | 最终 OTA ZIP 的字节数 |
 | `sha256` | 最终 OTA ZIP 的 64 位十六进制 SHA-256 |
-| `url` | OTA ZIP 的 HTTPS 直链，不是下载介绍页 |
+| `url` | OTA ZIP 的 HTTPS 直链 |
 | `os_sdk_level` | OTA 元数据的 `post-sdk-level`，填写为整数 |
 | `os_patch_level` | OTA 元数据的 `post-security-patch-level`，格式为 `YYYY-MM-DD`，可省略 |
 
-目标版本和渠道可从本次构建输出的 `product/etc/build.prop` 读取，不能沿用旧系统的值。
+目标版本和渠道从本次构建输出的 `product/etc/build.prop` 读取。
 
-更新列表响应不能超过 1 MiB，地址不能依赖 HTTP 重定向。客户端只显示时间戳晚于已安装系统、渠道相同且 SDK 不低于当前系统的包。服务端还需按设备划分列表；使用增量 OTA 时，也要按 `{incr}` 对应的源构建返回匹配的包。
+更新列表地址需直接返回 JSON，响应上限为 1 MiB。候选更新的时间戳需晚于已安装系统，渠道相同，SDK 大于或等于当前系统。服务端按设备划分列表；使用增量 OTA 时，按 `{incr}` 对应的源构建返回匹配的包。
 
 A/B 设备如需流式安装，在文件对象中增加 `ota_property_files`，原样填写最终 ZIP 元数据里的 `ota-property-files`。其中必须包含 `payload_metadata.bin`、`payload.bin` 和 `payload_properties.txt` 的字节范围，下载服务器需支持这些范围请求。不提供该字段时，使用完整下载后安装；非 A/B 设备使用 Recovery 安装。
 
-官网更新日志与 OTA 更新源相互独立。更新日志按版本存放在 `uwuAOSP/uwu_ChangeLOG` 的 `uwu-{版本号}` 分支。更新器读取官网 `/blog/uwu-{版本号}/`，不能把该网页地址填入 `updater_server_url`。
-
 #### 4. 验证配置
 
-1. 重新构建并安装包含资源覆盖的系统包，在设备上读取更新器实际采用的地址：
+1. 重新构建并安装包含资源覆盖的系统包，在设备上核对生效的更新源模板和设备属性：
 
    ```sh
    adb shell cmd overlay lookup org.uwuaosp.updater org.uwuaosp.updater:string/updater_server_url
@@ -145,7 +143,7 @@ A/B 设备如需流式安装，在文件对象中增加 `ota_property_files`，�
 2. 打开 **设置 > 系统 > 软件更新**，检查空列表、新更新，以及下载暂停和继续。
 3. 在测试设备上完成校验、安装和重启。A/B 设备确认更新后的系统可启动；非 A/B 设备确认 Recovery 能安装该包。
 
-更新包必须通过系统信任的 OTA 签名及设备、源构建和版本兼容性校验。SHA-256 不能代替签名。已有设备必须继续信任同一套发布密钥；密钥应备份到独立存储，不能上传到更新服务器。
+更新包必须通过系统信任的 OTA 签名及设备、源构建和版本兼容性校验。后续版本继续使用同一套发布密钥，并将密钥备份到独立存储。
 
 参考：[AOSP OTA 包与元数据](https://source.android.com/docs/core/ota/tools)、[资源覆盖](https://source.android.com/docs/core/runtime/rros)。
 
