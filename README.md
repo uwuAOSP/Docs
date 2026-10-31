@@ -18,7 +18,15 @@ uwu
 
 ### 手动改造
 
-请在设备树 `device.mk` 或等效 Makefile 中配置以下 Flag：
+1. 请从 uwuAOSP 的 vendor tree 继承：
+
+```
+$(call inherit-product, vendor/uwu/config/common.mk)
+```
+
+请注意，`vendor/uwu` 不存在类似于 LineageOS 的 `vendor/lineage/config/common_full_phone.mk` 的 `full_phone` 等变种区分，变种需要由您在第 2 步指定 `UWU_DEVICE_TYPE`。
+
+2. 请在设备树 `device.mk` 或等效 Makefile 中配置以下 Flag：
 
 ```
 # Device type
